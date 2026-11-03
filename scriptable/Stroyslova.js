@@ -121,7 +121,22 @@ const Engine = (() => {
     };
   }
 
-  const chunk = (list, size) => { const out = []; for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size)); return out; };
+  // Groups of at most three, as even as possible: 4 words make 2 + 2 and 5
+  // make 3 + 2, so no word is left to train alone without the pairs and the
+  // message.
+  function balancedGroups(list, max = 3) {
+    const n = list.length;
+    if (!n) return [];
+    const count = Math.ceil(n / max);
+    const out = [];
+    let i = 0;
+    for (let k = 0; k < count; k++) {
+      const size = Math.floor(n / count) + (k < n % count ? 1 : 0);
+      out.push(list.slice(i, i + size));
+      i += size;
+    }
+    return out;
+  }
 
   // One group of up to three words, exercised in rounds rather than one word
   // at a time: every word gets its first exercise, then every word its
@@ -168,8 +183,9 @@ const Engine = (() => {
     }
     const queue = [];
     const remaining = {};
-    // Reviews first, then the new words — each in groups of three.
-    for (const group of [...chunk(reviews, 3), ...chunk(fresh, 3)]) {
+    // Reviews first, then the new words, cut into even groups — so a word
+    // due for review is trained next to new ones rather than on its own.
+    for (const group of balancedGroups([...reviews, ...fresh])) {
       const built = buildGroup(group, words, progress);
       queue.push(...built.queue);
       for (const [id, n] of built.counts) remaining[id] = n;
@@ -204,14 +220,21 @@ const Engine = (() => {
   // The few words to keep in front of the eyes — the same ones the next
   // training will bring: due first, then the next new ones, then words being
   // learnt. The Mac's Cyclop picks them the same way.
-  function focusSet(words, progress, n = 3, day = today()) {
+  // Words waiting for review never take over the whole set: one place is
+  // kept for the next new word, and the waiting ones take turns in the rest
+  // (`slot` moves every hour and a half), so skipping a few days does not
+  // freeze the same three words on the screen.
+  function focusSet(words, progress, n = 3, day = today(), slot = 0) {
     const due = dueWords(words, progress, day).sort((a, b) => dueOf(progress, a) - dueOf(progress, b));
     const fresh = newWords(words, progress);
     const learning = words
       .filter((w) => { const b = boxOf(progress, w); return b >= 1 && b <= 4 && dueOf(progress, w) > day; })
       .sort((a, b) => dueOf(progress, a) - dueOf(progress, b));
+    const dueSlots = Math.min(due.length, fresh.length ? n - 1 : n);
+    const start = due.length ? slot % due.length : 0;
+    const rotated = due.slice(start).concat(due.slice(0, start)).slice(0, dueSlots);
     const out = [];
-    for (const w of [...due, ...fresh, ...learning]) {
+    for (const w of [...rotated, ...fresh, ...due, ...learning]) {
       if (!out.includes(w)) out.push(w);
       if (out.length === n) break;
     }
@@ -259,7 +282,7 @@ const Engine = (() => {
     return "wrong";
   }
 
-  return { INTERVALS, NEW_PER_SESSION, MAX_REVIEWS, idOf, today, shuffle, dueWords, newWords, boxOf, dueOf, plan, make, buildSession, score, merge, focusSet, focusWord, blank, makePairs, makeSituation, checkTyped, hasExamples };
+  return { INTERVALS, NEW_PER_SESSION, MAX_REVIEWS, idOf, today, shuffle, dueWords, newWords, boxOf, dueOf, plan, make, buildSession, score, merge, focusSet, balancedGroups, focusWord, blank, makePairs, makeSituation, checkTyped, hasExamples };
 })();
 if (typeof module !== "undefined") module.exports = Engine;
 
@@ -360,8 +383,8 @@ function buildWidget() {
   const family = config.widgetFamily || "medium";
   // The same three words the app shows under "Слова сейчас"; the widget
   // steps through them every half hour (iOS decides the exact moment).
-  const set = Engine.focusSet(allWords, progress, 3);
   const slot = Math.floor(Date.now() / (30 * 60 * 1000));
+  const set = Engine.focusSet(allWords, progress, 3, Engine.today(), Math.floor(slot / 3));
   const w = new ListWidget();
   w.url = "scriptable:///run/" + encodeURIComponent(Script.name());
   w.refreshAfterDate = new Date((slot + 1) * 30 * 60 * 1000 + 5000);
