@@ -61,13 +61,21 @@ const Engine = (() => {
   const NEEDS_EXAMPLE = ["fillBlank", "buildSentence", "dictation"];
   const hasExamples = (w) => Array.isArray(w.examples) && w.examples.length > 0;
 
-  function make(kind, word, words, retry = false) {
+  // Wrong options come first from the words being learnt together: telling
+  // RFI from submittal is the real skill, telling it from ADU is not.
+  function distractors(word, words, group) {
+    const near = (group || []).filter((w) => idOf(w) !== idOf(word));
+    const rest = shuffle(words.filter((w) => idOf(w) !== idOf(word) && !near.includes(w)));
+    return [...near, ...rest].slice(0, 3);
+  }
+
+  function make(kind, word, words, retry = false, group = null) {
     if (!hasExamples(word) && NEEDS_EXAMPLE.includes(kind)) kind = kind === "dictation" ? "listen" : "toEnglish";
     const example = hasExamples(word)
       ? word.examples[Math.floor(Math.random() * word.examples.length)]
       : { en: word.en, ru: word.ru };
-    const others = shuffle(words.filter((w) => idOf(w) !== idOf(word))).slice(0, 3);
-    const ex = { kind, word, example, options: [], answer: "", pieces: [], target: [], retry };
+    const others = distractors(word, words, group);
+    const ex = { kind, word, example, options: [], answer: "", pieces: [], target: [], retry, group: null };
     if (kind === "meaning") {
       ex.options = shuffle([word.ru, ...others.map((o) => o.ru)]);
       ex.answer = word.ru;
@@ -86,6 +94,66 @@ const Engine = (() => {
     return ex;
   }
 
+  // Match three English words with their meanings.
+  function makePairs(group) {
+    return {
+      kind: "pairs", word: group[0], group, retry: false,
+      left: shuffle(group.map((w) => w.en)), right: shuffle(group.map((w) => w.ru)),
+      options: [], answer: "", pieces: [], target: [], example: { en: "", ru: "" },
+    };
+  }
+
+  // A short message from the site that needs all the words of the group —
+  // one example sentence of each, with the word taken out.
+  function makeSituation(group) {
+    const picks = shuffle(group.filter(hasExamples)).map((w) => {
+      const ex = w.examples[Math.floor(Math.random() * w.examples.length)];
+      const i = ex.en.toLowerCase().indexOf(w.en.toLowerCase());
+      return { word: w, before: ex.en.slice(0, i), after: ex.en.slice(i + w.en.length), en: ex.en, ru: ex.ru };
+    }).filter((p) => p.before.length + p.after.length > 0 && p.en.toLowerCase().includes(p.word.en.toLowerCase()));
+    if (picks.length < 2) return null;
+    const target = picks.map((p) => p.word.en);
+    return {
+      kind: "situation", word: picks[0].word, group: picks.map((p) => p.word), retry: false,
+      segments: picks.map((p) => ({ before: p.before, after: p.after })),
+      options: [], answer: "", pieces: shuffledDifferently(target), target,
+      example: { en: picks.map((p) => p.en).join(" "), ru: picks.map((p) => p.ru).join(" ") },
+    };
+  }
+
+  const chunk = (list, size) => { const out = []; for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size)); return out; };
+
+  // One group of up to three words, exercised in rounds rather than one word
+  // at a time: every word gets its first exercise, then every word its
+  // second, and so on — with the pairs after the first round and the site
+  // message at the end. Between two exercises on the same word there are
+  // others, so each answer has to be recalled, not just repeated.
+  function buildGroup(group, words, progress) {
+    const plans = group.map((w) => plan(boxOf(progress, w)));
+    const counts = new Map(group.map((w) => [idOf(w), 0]));
+    const queue = [];
+    const rounds = Math.max(...plans.map((p) => p.length));
+    let pairsPlaced = false;
+    for (let r = 0; r < rounds; r++) {
+      let items = shuffle(group.map((w, i) => ({ w, kind: plans[i][r] })).filter((x) => x.kind));
+      const last = queue[queue.length - 1];
+      if (last && items.length > 1 && last.word === items[0].w) items.push(items.shift());
+      const isIntroRound = items.every((x) => x.kind === "intro");
+      for (const x of items) { queue.push(make(x.kind, x.w, words, false, group)); counts.set(idOf(x.w), counts.get(idOf(x.w)) + 1); }
+      if (!isIntroRound && !pairsPlaced && group.length >= 2) {
+        queue.push(makePairs(group));
+        for (const w of group) counts.set(idOf(w), counts.get(idOf(w)) + 1);
+        pairsPlaced = true;
+      }
+    }
+    const situation = group.length >= 2 ? makeSituation(group) : null;
+    if (situation) {
+      queue.push(situation);
+      for (const w of situation.group) counts.set(idOf(w), counts.get(idOf(w)) + 1);
+    }
+    return { queue, counts };
+  }
+
   function buildSession(words, progress, opts = {}) {
     let fresh = [], reviews = [];
     if (opts.only) {
@@ -100,10 +168,11 @@ const Engine = (() => {
     }
     const queue = [];
     const remaining = {};
-    for (const w of [...fresh, ...reviews]) {
-      const kinds = plan(boxOf(progress, w));
-      remaining[idOf(w)] = kinds.length;
-      for (const k of kinds) queue.push(make(k, w, words));
+    // Reviews first, then the new words — each in groups of three.
+    for (const group of [...chunk(reviews, 3), ...chunk(fresh, 3)]) {
+      const built = buildGroup(group, words, progress);
+      queue.push(...built.queue);
+      for (const [id, n] of built.counts) remaining[id] = n;
     }
     return { queue, pos: 0, remaining, failed: new Set(), total: fresh.length + reviews.length, clean: 0 };
   }
@@ -190,7 +259,7 @@ const Engine = (() => {
     return "wrong";
   }
 
-  return { INTERVALS, NEW_PER_SESSION, MAX_REVIEWS, idOf, today, shuffle, dueWords, newWords, boxOf, dueOf, plan, make, buildSession, score, merge, focusSet, focusWord, blank, checkTyped, hasExamples };
+  return { INTERVALS, NEW_PER_SESSION, MAX_REVIEWS, idOf, today, shuffle, dueWords, newWords, boxOf, dueOf, plan, make, buildSession, score, merge, focusSet, focusWord, blank, makePairs, makeSituation, checkTyped, hasExamples };
 })();
 if (typeof module !== "undefined") module.exports = Engine;
 

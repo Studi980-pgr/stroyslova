@@ -96,6 +96,14 @@ h1 { font-family: var(--display); font-weight: 700; font-size: 34px; line-height
 .opt.good { border-color: var(--good); background: var(--good-bg); }
 .opt.bad { border-color: var(--bad); background: var(--bad-bg); }
 .opt.dim { opacity: .5; }
+.pairs { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.pairs .col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.opt.pair { font-size: 15px; min-height: 64px; }
+.opt.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.sheet.message .prompt { line-height: 1.6; }
+.gap { display: inline-block; min-width: 70px; border-bottom: 2px solid var(--line); }
+.sheet.message .gap { border-bottom-color: var(--line); }
+.sheet.message .gap.next { border-bottom-color: var(--accent); }
 
 .answerline { min-height: 58px; border-bottom: 2px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; padding-bottom: 8px; }
 .slot { font-family: var(--display); font-weight: 700; font-size: 32px; min-width: 18px; text-align: center; line-height: 1.1; }
@@ -189,13 +197,21 @@ const Engine = (() => {
   const NEEDS_EXAMPLE = ["fillBlank", "buildSentence", "dictation"];
   const hasExamples = (w) => Array.isArray(w.examples) && w.examples.length > 0;
 
-  function make(kind, word, words, retry = false) {
+  // Wrong options come first from the words being learnt together: telling
+  // RFI from submittal is the real skill, telling it from ADU is not.
+  function distractors(word, words, group) {
+    const near = (group || []).filter((w) => idOf(w) !== idOf(word));
+    const rest = shuffle(words.filter((w) => idOf(w) !== idOf(word) && !near.includes(w)));
+    return [...near, ...rest].slice(0, 3);
+  }
+
+  function make(kind, word, words, retry = false, group = null) {
     if (!hasExamples(word) && NEEDS_EXAMPLE.includes(kind)) kind = kind === "dictation" ? "listen" : "toEnglish";
     const example = hasExamples(word)
       ? word.examples[Math.floor(Math.random() * word.examples.length)]
       : { en: word.en, ru: word.ru };
-    const others = shuffle(words.filter((w) => idOf(w) !== idOf(word))).slice(0, 3);
-    const ex = { kind, word, example, options: [], answer: "", pieces: [], target: [], retry };
+    const others = distractors(word, words, group);
+    const ex = { kind, word, example, options: [], answer: "", pieces: [], target: [], retry, group: null };
     if (kind === "meaning") {
       ex.options = shuffle([word.ru, ...others.map((o) => o.ru)]);
       ex.answer = word.ru;
@@ -214,6 +230,66 @@ const Engine = (() => {
     return ex;
   }
 
+  // Match three English words with their meanings.
+  function makePairs(group) {
+    return {
+      kind: "pairs", word: group[0], group, retry: false,
+      left: shuffle(group.map((w) => w.en)), right: shuffle(group.map((w) => w.ru)),
+      options: [], answer: "", pieces: [], target: [], example: { en: "", ru: "" },
+    };
+  }
+
+  // A short message from the site that needs all the words of the group —
+  // one example sentence of each, with the word taken out.
+  function makeSituation(group) {
+    const picks = shuffle(group.filter(hasExamples)).map((w) => {
+      const ex = w.examples[Math.floor(Math.random() * w.examples.length)];
+      const i = ex.en.toLowerCase().indexOf(w.en.toLowerCase());
+      return { word: w, before: ex.en.slice(0, i), after: ex.en.slice(i + w.en.length), en: ex.en, ru: ex.ru };
+    }).filter((p) => p.before.length + p.after.length > 0 && p.en.toLowerCase().includes(p.word.en.toLowerCase()));
+    if (picks.length < 2) return null;
+    const target = picks.map((p) => p.word.en);
+    return {
+      kind: "situation", word: picks[0].word, group: picks.map((p) => p.word), retry: false,
+      segments: picks.map((p) => ({ before: p.before, after: p.after })),
+      options: [], answer: "", pieces: shuffledDifferently(target), target,
+      example: { en: picks.map((p) => p.en).join(" "), ru: picks.map((p) => p.ru).join(" ") },
+    };
+  }
+
+  const chunk = (list, size) => { const out = []; for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size)); return out; };
+
+  // One group of up to three words, exercised in rounds rather than one word
+  // at a time: every word gets its first exercise, then every word its
+  // second, and so on — with the pairs after the first round and the site
+  // message at the end. Between two exercises on the same word there are
+  // others, so each answer has to be recalled, not just repeated.
+  function buildGroup(group, words, progress) {
+    const plans = group.map((w) => plan(boxOf(progress, w)));
+    const counts = new Map(group.map((w) => [idOf(w), 0]));
+    const queue = [];
+    const rounds = Math.max(...plans.map((p) => p.length));
+    let pairsPlaced = false;
+    for (let r = 0; r < rounds; r++) {
+      let items = shuffle(group.map((w, i) => ({ w, kind: plans[i][r] })).filter((x) => x.kind));
+      const last = queue[queue.length - 1];
+      if (last && items.length > 1 && last.word === items[0].w) items.push(items.shift());
+      const isIntroRound = items.every((x) => x.kind === "intro");
+      for (const x of items) { queue.push(make(x.kind, x.w, words, false, group)); counts.set(idOf(x.w), counts.get(idOf(x.w)) + 1); }
+      if (!isIntroRound && !pairsPlaced && group.length >= 2) {
+        queue.push(makePairs(group));
+        for (const w of group) counts.set(idOf(w), counts.get(idOf(w)) + 1);
+        pairsPlaced = true;
+      }
+    }
+    const situation = group.length >= 2 ? makeSituation(group) : null;
+    if (situation) {
+      queue.push(situation);
+      for (const w of situation.group) counts.set(idOf(w), counts.get(idOf(w)) + 1);
+    }
+    return { queue, counts };
+  }
+
   function buildSession(words, progress, opts = {}) {
     let fresh = [], reviews = [];
     if (opts.only) {
@@ -228,10 +304,11 @@ const Engine = (() => {
     }
     const queue = [];
     const remaining = {};
-    for (const w of [...fresh, ...reviews]) {
-      const kinds = plan(boxOf(progress, w));
-      remaining[idOf(w)] = kinds.length;
-      for (const k of kinds) queue.push(make(k, w, words));
+    // Reviews first, then the new words — each in groups of three.
+    for (const group of [...chunk(reviews, 3), ...chunk(fresh, 3)]) {
+      const built = buildGroup(group, words, progress);
+      queue.push(...built.queue);
+      for (const [id, n] of built.counts) remaining[id] = n;
     }
     return { queue, pos: 0, remaining, failed: new Set(), total: fresh.length + reviews.length, clean: 0 };
   }
@@ -318,7 +395,7 @@ const Engine = (() => {
     return "wrong";
   }
 
-  return { INTERVALS, NEW_PER_SESSION, MAX_REVIEWS, idOf, today, shuffle, dueWords, newWords, boxOf, dueOf, plan, make, buildSession, score, merge, focusSet, focusWord, blank, checkTyped, hasExamples };
+  return { INTERVALS, NEW_PER_SESSION, MAX_REVIEWS, idOf, today, shuffle, dueWords, newWords, boxOf, dueOf, plan, make, buildSession, score, merge, focusSet, focusWord, blank, makePairs, makeSituation, checkTyped, hasExamples };
 })();
 if (typeof module !== "undefined") module.exports = Engine;
 
@@ -434,13 +511,15 @@ const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"докуме
 
   // ---------- State ----------
   const state = { tab: "today", session: null, ex: null, browse: null, adding: false, formError: "" };
-  const blankEx = () => ({ picked: null, placed: [], wrong: null, wrongTaps: 0, mistake: false, done: false, revealed: false, typedResult: null, typed: "" });
+  const blankEx = () => ({ picked: null, placed: [], wrong: null, wrongTaps: 0, mistake: false, mistakeIds: new Set(), done: false, revealed: false, typedResult: null, typed: "", sel: null, matched: [], wrongPair: null });
+  const isGroupEx = (ex) => ex.kind === "pairs" || ex.kind === "situation";
 
   const LEVEL_NAMES = ["новое", "1 день", "2 дня", "4 дня", "неделя", "2 нед.", "месяц"];
   const TITLES = {
     intro: "Новое слово", meaning: "Что это значит?", listen: "Послушай и выбери слово",
     toEnglish: "Как это по-английски?", letters: "Собери слово из букв", fillBlank: "Вставь пропущенное слово",
     buildSentence: "Собери предложение", dictation: "Послушай и собери предложение", typing: "Напиши слово",
+    pairs: "Соедини пары", situation: "Сообщение с объекта: вставь слова",
   };
 
   // ---------- Render ----------
@@ -592,6 +671,32 @@ const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"докуме
         return `<button class="tile ${ex.kind === "letters" ? "letter" : ""} ${used ? "used" : ""} ${st.wrong === i ? "wrong" : ""}" data-act="tap" data-i="${i}" ${used || st.done ? "disabled" : ""}>${esc(p)}</button>`;
       }).join("");
       body = `<section class="sheet">${prompt}<div class="answerline" aria-live="polite">${line}</div></section><div class="tiles">${tiles}</div>`;
+    } else if (ex.kind === "pairs") {
+      const matchedRu = new Set(st.matched.map((en) => ex.group.find((w) => w.en === en).ru));
+      const btn = (side, v) => {
+        const done = side === "l" ? st.matched.includes(v) : matchedRu.has(v);
+        const selected = st.sel && st.sel.side === side && st.sel.v === v;
+        const wrong = st.wrongPair && st.wrongPair[side] === v;
+        return `<button class="opt pair ${done ? "good" : ""} ${selected ? "sel" : ""} ${wrong ? "bad" : ""}" data-act="pair" data-side="${side}" data-v="${esc(v)}" ${done || st.done ? "disabled" : ""}>${esc(v)}</button>`;
+      };
+      body = `<p class="note" style="margin:0">Нажми английское слово, потом его перевод.</p>
+        <div class="pairs"><div class="col">${ex.left.map((v) => btn("l", v)).join("")}</div><div class="col">${ex.right.map((v) => btn("r", v)).join("")}</div></div>`;
+    } else if (ex.kind === "situation") {
+      const placed = st.placed.map((i) => ex.pieces[i]);
+      const lines = ex.segments.map((seg, k) => {
+        const v = placed[k];
+        const slot = v ? `<b class="${st.revealed ? "revealed" : ""}">${esc(v)}</b>` : `<span class="gap ${k === placed.length ? "next" : ""}">&nbsp;</span>`;
+        return `${esc(seg.before)}${slot}${esc(seg.after)}`;
+      }).join(" ");
+      const tiles = ex.pieces.map((p, i) => {
+        const used = st.placed.includes(i);
+        return `<button class="tile ${used ? "used" : ""} ${st.wrong === i ? "wrong" : ""}" data-act="tap" data-i="${i}" ${used || st.done ? "disabled" : ""}>${esc(p)}</button>`;
+      }).join("");
+      body = `<section class="sheet message">
+          <div class="label">Сообщение · ${ex.group.length} ${plural(ex.group.length, "слово", "слова", "слов")}</div>
+          <div class="prompt" style="font-size:19px">Hi Mike,<br>${lines}<br>Thanks!</div>
+          ${st.done ? `<div class="sub">${esc(ex.example.ru)}</div>` : `<div class="sub">Вставляй слова по порядку, начиная с первого пропуска.</div>`}
+        </section><div class="tiles">${tiles}</div>`;
     } else if (ex.kind === "typing") {
       const hint = [...w.en].map((c, i) => (c === " " ? " " : i === 0 ? c : "_")).join("");
       body = `<section class="sheet">
@@ -602,7 +707,12 @@ const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"докуме
     }
 
     let feedback = "";
-    if (st.done && ex.kind !== "intro") {
+    if (st.done && isGroupEx(ex)) {
+      const good = !st.mistake;
+      feedback = `<div class="feedback ${good ? "good" : "bad"}" role="status"><div class="fb-body"><b>${good ? "Верно!" : "Запомни"}</b>
+        ${ex.group.map((w) => `<div><span>${esc(w.en)}</span> <span class="ipa">${esc(w.ipa || "")}</span> — ${esc(w.ru)}</div>`).join("")}</div>
+        ${ex.kind === "situation" ? sayBtn(ex.example.en) : ""}</div>`;
+    } else if (st.done && ex.kind !== "intro") {
       const good = !st.mistake;
       const title = good ? (st.typedResult === "typo" ? "Почти! Одна опечатка" : "Верно!") : "Запомни";
       const audio = ["fillBlank", "buildSentence", "dictation"].includes(ex.kind) ? ex.example.en : w.en;
@@ -614,6 +724,7 @@ const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"докуме
     if (ex.kind === "intro") actions = `<button class="btn primary" data-act="next">Понятно, к заданиям</button>`;
     else if (st.done) actions = `<button class="btn primary" data-act="next">Дальше</button>`;
     else if (ex.kind === "typing") actions = `<button class="btn ghost" data-act="reveal">Не знаю</button><button class="btn primary" data-act="check">Проверить</button>`;
+    else if (ex.kind === "pairs") actions = `<button class="btn ghost" data-act="reveal">Не знаю</button>`;
     else if (ex.target.length) actions = `<button class="btn ghost" data-act="undo" ${st.placed.length ? "" : "disabled"}>Назад</button><button class="btn ghost" data-act="reveal">Не знаю</button>`;
     else actions = `<button class="btn ghost" data-act="reveal">Не знаю</button>`;
 
@@ -697,27 +808,67 @@ const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"докуме
     if (ex.kind === "dictation") speak(ex.example.en);
   }
 
+  // A mistake belongs to a word: the word of the exercise, or — in the pairs
+  // and the message — the word that was missed.
+  function markMistake(word) {
+    const st = state.ex, ex = state.session.queue[state.session.pos];
+    st.mistake = true;
+    st.mistakeIds.add(E.idOf(word || ex.word));
+  }
+
   function finishExercise(mistake) {
     const st = state.ex, ex = state.session.queue[state.session.pos];
-    if (mistake) st.mistake = true;
+    if (mistake && !isGroupEx(ex)) markMistake(ex.word);
     st.done = true;
     render();
-    speak(["fillBlank", "buildSentence", "dictation"].includes(ex.kind) ? ex.example.en : ex.word.en);
+    if (ex.kind === "pairs") return;
+    speak(["fillBlank", "buildSentence", "dictation", "situation"].includes(ex.kind) ? ex.example.en : ex.word.en);
+  }
+
+  function pairTap(side, v) {
+    const ex = state.session.queue[state.session.pos], st = state.ex;
+    if (st.done) return;
+    if (!st.sel || st.sel.side === side) {
+      st.sel = { side, v };
+      if (side === "l") speak(v);
+      render();
+      return;
+    }
+    const en = side === "l" ? v : st.sel.v;
+    const ru = side === "r" ? v : st.sel.v;
+    const word = ex.group.find((w) => w.en === en);
+    st.sel = null;
+    if (word.ru === ru) {
+      st.matched.push(en);
+      st.wrongPair = null;
+      speak(en);
+      if (st.matched.length === ex.group.length) { finishExercise(false); return; }
+    } else {
+      markMistake(word);
+      st.wrongPair = { l: en, r: ru };
+      setTimeout(() => { if (state.ex === st) { st.wrongPair = null; render(); } }, 500);
+    }
+    render();
   }
 
   function advance() {
-    const s = state.session, ex = s.queue[s.pos], id = E.idOf(ex.word);
-    if (state.ex.mistake) s.failed.add(id);
-    if (!ex.retry && s.remaining[id] !== undefined) {
+    const s = state.session, ex = s.queue[s.pos];
+    for (const id of state.ex.mistakeIds) s.failed.add(id);
+    const involved = isGroupEx(ex) ? ex.group : [ex.word];
+    let changed = false;
+    for (const w of involved) {
+      const id = E.idOf(w);
+      if (ex.retry || s.remaining[id] === undefined) continue;
       s.remaining[id] -= 1;
       if (s.remaining[id] === 0) {
         const failed = s.failed.has(id);
         progress[id] = E.score(progress[id], failed);
-        if (failed) s.queue.push(E.make(Math.random() < 0.5 ? "letters" : "toEnglish", ex.word, WORDS, true));
+        if (failed) s.queue.push(E.make(Math.random() < 0.5 ? "letters" : "toEnglish", w, WORDS, true));
         else s.clean += 1;
-        save();
+        changed = true;
       }
     }
+    if (changed) save();
     s.pos += 1;
     state.ex = blankEx();
     render();
@@ -732,7 +883,8 @@ const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"докуме
       st.wrong = null;
       if (st.placed.length === ex.target.length) { finishExercise(false); return; }
     } else {
-      st.mistake = true;
+      const expected = ex.kind === "situation" ? ex.group.find((w) => w.en === ex.target[st.placed.length]) : ex.word;
+      markMistake(expected);
       st.wrong = i;
       st.wrongTaps += 1;
       if (st.wrongTaps >= 3) { reveal(); return; }
@@ -744,6 +896,15 @@ const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"докуме
   function reveal() {
     const ex = state.session.queue[state.session.pos], st = state.ex;
     st.revealed = true;
+    if (ex.kind === "pairs") {
+      for (const w of ex.group) if (!st.matched.includes(w.en)) { markMistake(w); st.matched.push(w.en); }
+      st.sel = null;
+      finishExercise(false);
+      return;
+    }
+    if (ex.kind === "situation") {
+      for (let k = st.placed.length; k < ex.target.length; k++) markMistake(ex.group.find((w) => w.en === ex.target[k]));
+    }
     if (ex.target.length) {
       const used = new Set();
       st.placed = ex.target.map((t) => { const i = ex.pieces.findIndex((p, k) => !used.has(k) && p === t); used.add(i); return i; });
@@ -789,6 +950,7 @@ const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"докуме
       return finishExercise(b.dataset.v !== ex.answer);
     }
     if (act === "tap") return tap(Number(b.dataset.i));
+    if (act === "pair") return pairTap(b.dataset.side, b.dataset.v);
     if (act === "undo") { state.ex.placed.pop(); render(); return; }
     if (act === "reveal") return reveal();
     if (act === "check") return check();
