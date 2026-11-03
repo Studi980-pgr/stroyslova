@@ -219,7 +219,8 @@ await ensureFile("app.html", "index.html");
 await ensureFile("words.json", "words.json");
 
 // Updates: the script, the app and the starter words are refreshed from
-// SOURCE — on every run in the app, and from the widget at most every 6 hours.
+// SOURCE at most once every 12 hours, in the background — opening the app
+// never waits for the network, and offline nothing happens.
 // Set to false if you edit app.html or words.json by hand, or they will be
 // replaced with the versions from SOURCE.
 const AUTO_UPDATE = true;
@@ -227,14 +228,15 @@ const AUTO_UPDATE = true;
 async function selfUpdate() {
   if (!AUTO_UPDATE) return;
   try {
-    const remote = await new Request(SOURCE + "scriptable/Stroyslova.js").loadString();
+    const get = (p) => { const r = new Request(SOURCE + p); r.timeoutInterval = 8; return r.loadString(); };
+    const remote = await get("scriptable/Stroyslova.js");
     if (remote.includes("Stroyslova") && remote.includes("Engine")) {
       let mine = "";
       try { mine = fm.readString(module.filename); } catch (e) {}
       if (remote !== mine) fm.writeString(module.filename, remote);
     }
     for (const [local, remotePath] of [["app.html", "index.html"], ["words.json", "words.json"]]) {
-      const text = await new Request(SOURCE + remotePath).loadString();
+      const text = await get(remotePath);
       if (text && text.length > 1000 && !text.startsWith("404")) fm.writeString(path(local), text);
     }
     fm.writeString(path("last-update.txt"), String(Date.now()));
@@ -244,10 +246,12 @@ async function selfUpdate() {
 }
 
 function updateDue() {
-  try { return Date.now() - Number(fm.readString(path("last-update.txt"))) > 6 * 3600 * 1000; } catch (e) { return true; }
+  try { return Date.now() - Number(fm.readString(path("last-update.txt"))) > 12 * 3600 * 1000; } catch (e) { return true; }
 }
 
-if (!config.runsInWidget || updateDue()) await selfUpdate();
+// Started, not awaited: the app opens straight away and the new version is
+// used from the next run.
+const updating = updateDue() ? selfUpdate() : null;
 
 async function readJSON(name, fallback) {
   const p = path(name);
@@ -275,6 +279,7 @@ if (config.runsInWidget || args.widgetParameter === "preview") {
   const widget = buildWidget();
   if (config.runsInWidget) Script.setWidget(widget);
   else await widget.presentMedium();
+  if (updating) await updating;
   Script.complete();
 } else {
   await runApp();
