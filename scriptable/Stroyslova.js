@@ -334,7 +334,7 @@ const allWords = baseWords.concat(custom.filter((w) => !seen.has(w.en.toLowerCas
 const progress = store.words || {};
 
 if (config.runsInWidget || args.widgetParameter === "preview") {
-  const widget = buildWidget();
+  const widget = await buildWidget();
   if (config.runsInWidget) Script.setWidget(widget);
   else await widget.presentMedium();
   Script.complete();
@@ -379,7 +379,7 @@ async function runApp() {
 
 // ---------------------------------------------------------------- widget
 
-function buildWidget() {
+async function buildWidget() {
   const family = config.widgetFamily || "medium";
   // The same three words the app shows under "Слова сейчас"; the widget
   // steps through them every half hour (iOS decides the exact moment).
@@ -389,9 +389,17 @@ function buildWidget() {
   w.url = "scriptable:///run/" + encodeURIComponent(Script.name());
   w.refreshAfterDate = new Date((slot + 1) * 30 * 60 * 1000 + 5000);
 
-  const ink = Color.dynamic(new Color("#142033"), new Color("#e7edf4"));
-  const muted = Color.dynamic(new Color("#5a6879"), new Color("#92a0b2"));
-  const accent = Color.dynamic(new Color("#1d5bd0"), new Color("#5a8ef2"));
+  // Optional picture background (Stroyslova/widget-bg.png) — e.g. the
+  // wallpaper under the widget, blurred and darkened to look like dark glass.
+  // With it the text is always light.
+  let picture = null;
+  const bgPath = path("widget-bg.png");
+  if (family === "medium" && fm.fileExists(bgPath)) {
+    try { await fm.downloadFileFromiCloud(bgPath); picture = fm.readImage(bgPath); } catch (e) { picture = null; }
+  }
+  const ink = picture ? Color.white() : Color.dynamic(new Color("#142033"), new Color("#e7edf4"));
+  const muted = picture ? new Color("#ffffff", 0.72) : Color.dynamic(new Color("#5a6879"), new Color("#92a0b2"));
+  const accent = picture ? new Color("#a9c6ff") : Color.dynamic(new Color("#1d5bd0"), new Color("#5a8ef2"));
 
   if (!set.length) {
     const t = w.addText("Стройслова: нет слов");
@@ -418,7 +426,8 @@ function buildWidget() {
     return w;
   }
 
-  w.backgroundColor = Color.dynamic(new Color("#ffffff"), new Color("#17202b"));
+  if (picture) w.backgroundImage = picture;
+  else w.backgroundColor = Color.dynamic(new Color("#ffffff"), new Color("#17202b"));
   w.setPadding(12, 16, 12, 16);
 
   const top = w.addStack();
