@@ -348,7 +348,9 @@ function buildWidget() {
     longMeaning ? [examples[slot % examples.length]] :
     [examples[slot % examples.length], examples[(slot + 1) % examples.length]].filter((e, i, a) => a.indexOf(e) === i);
 
-  w.addSpacer(4);
+  // Flexible space above and below the word block: whatever room the text
+  // leaves is split evenly, so the card never looks top-heavy.
+  w.addSpacer();
   const head = w.addStack();
   head.bottomAlignContent();
   const en = head.addText(word.en);
