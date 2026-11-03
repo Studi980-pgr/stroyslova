@@ -442,7 +442,7 @@ async function buildWidget() {
 
   // Fill the medium widget: a short meaning leaves room for two examples,
   // a long one (two lines) for one.
-  const longMeaning = word.ru.length > 42;
+  const longMeaning = word.ru.length > 46;
   const examples = (word.examples || []);
   const shown = family === "small" ? [] :
     examples.length === 0 ? [] :
@@ -457,7 +457,7 @@ async function buildWidget() {
   const head = w.addStack();
   head.bottomAlignContent();
   const en = head.addText(word.en);
-  en.font = Font.boldSystemFont(family === "small" ? 22 : 32);
+  en.font = Font.boldSystemFont(family === "small" ? 22 : 30);
   en.textColor = ink;
   en.minimumScaleFactor = 0.5;
   en.lineLimit = 1;
@@ -483,31 +483,32 @@ async function buildWidget() {
   ru.minimumScaleFactor = 0.85;
 
   if (shown.length) w.addSpacer();
-  shown.forEach((ex, i) => {
-    if (i > 0) w.addSpacer(6);
-    const twoLines = shown.length === 1;
-    // An accent bar on the left sets the example apart from the meaning.
-    const row = w.addStack();
-    row.layoutHorizontally();
-    row.spacing = 8;
-    const bar = row.addStack();
-    bar.size = new Size(3, twoLines ? 62 : 31);
-    bar.backgroundColor = accent;
-    bar.cornerRadius = 1.5;
-    const col = row.addStack();
-    col.layoutVertically();
-    col.spacing = 1;
-    const e = col.addText(ex.en);
-    e.font = Font.italicSystemFont(13.5);
-    e.textColor = ink;
-    e.lineLimit = twoLines ? 2 : 1;
-    e.minimumScaleFactor = 0.75;
-    const er = col.addText(ex.ru);
-    er.font = Font.systemFont(12);
-    er.textColor = muted;
-    er.lineLimit = twoLines ? 2 : 1;
-    er.minimumScaleFactor = 0.75;
-  });
+  // The examples sit on a faint panel that is exactly as tall as its text —
+  // set apart from the meaning without a bar that could outgrow them.
+  if (shown.length) {
+    const panel = w.addStack();
+    panel.layoutVertically();
+    panel.setPadding(6, 10, 6, 10);
+    panel.cornerRadius = 10;
+    panel.backgroundColor = picture ? new Color("#ffffff", 0.10) : Color.dynamic(new Color("#1d5bd0", 0.07), new Color("#ffffff", 0.07));
+    shown.forEach((ex, i) => {
+      if (i > 0) panel.addSpacer(5);
+      const twoLines = shown.length === 1;
+      const e = panel.addText(ex.en);
+      e.font = Font.italicSystemFont(13.5);
+      e.textColor = ink;
+      e.lineLimit = twoLines ? 2 : 1;
+      e.minimumScaleFactor = 0.75;
+      const er = panel.addText(ex.ru);
+      er.font = Font.systemFont(12);
+      er.textColor = muted;
+      er.lineLimit = twoLines ? 2 : 1;
+      er.minimumScaleFactor = 0.75;
+    });
+    // Let the panel span the full width of the card.
+    const rows = panel.addStack();
+    rows.addSpacer();
+  }
   // With examples the last one sits on the bottom edge; without them the
   // word and meaning stay centred.
   if (!shown.length) w.addSpacer();
