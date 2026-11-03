@@ -51,9 +51,11 @@ const Engine = (() => {
   // (spelling, then typing) is in every block: recognising is not remembering.
   function plan(box) {
     const two = (pool) => shuffle(pool).slice(0, 2);
-    if (box === 0) return ["intro", "meaning", "listen", "letters", "fillBlank"];
-    if (box <= 2) { const p = two(["listen", "toEnglish", "fillBlank", "meaning"]); return [p[0], "letters", p[1]]; }
-    if (box <= 4) { const p = two(["fillBlank", "buildSentence", "toEnglish", "listen"]); return [p[0], "typing", p[1]]; }
+    // "Listen and pick the word" is gone: every answer is read aloud anyway,
+    // and picking a heard word out of four was too easy to teach anything.
+    if (box === 0) return ["intro", "meaning", "letters", "fillBlank"];
+    if (box <= 2) { const p = two(["toEnglish", "fillBlank", "meaning"]); return [p[0], "letters", p[1]]; }
+    if (box <= 4) { const p = two(["fillBlank", "buildSentence", "toEnglish"]); return [p[0], "typing", p[1]]; }
     const p = two(["dictation", "buildSentence", "fillBlank"]);
     return [p[0], "typing", p[1]];
   }
@@ -70,7 +72,7 @@ const Engine = (() => {
   }
 
   function make(kind, word, words, retry = false, group = null) {
-    if (!hasExamples(word) && NEEDS_EXAMPLE.includes(kind)) kind = kind === "dictation" ? "listen" : "toEnglish";
+    if (!hasExamples(word) && NEEDS_EXAMPLE.includes(kind)) kind = "toEnglish";
     const example = hasExamples(word)
       ? word.examples[Math.floor(Math.random() * word.examples.length)]
       : { en: word.en, ru: word.ru };
@@ -121,13 +123,14 @@ const Engine = (() => {
     };
   }
 
-  // Groups of at most three, as even as possible: 4 words make 2 + 2 and 5
-  // make 3 + 2, so no word is left to train alone without the pairs and the
-  // message.
-  function balancedGroups(list, max = 3) {
+  // Groups of three or four (two only when there are just two words), as
+  // even as possible: 4 words stay together, 5 make one group of five, 6 make
+  // 3 + 3, 7 make 4 + 3. Pairs of two were too easy.
+  function balancedGroups(list, max = 4, min = 3) {
     const n = list.length;
     if (!n) return [];
-    const count = Math.ceil(n / max);
+    let count = Math.ceil(n / max);
+    while (count > 1 && Math.floor(n / count) < min) count--;
     const out = [];
     let i = 0;
     for (let k = 0; k < count; k++) {
