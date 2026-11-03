@@ -196,7 +196,7 @@ if (typeof module !== "undefined") module.exports = Engine;
 
 
 // Where the app and the word list are downloaded from the first time.
-const SOURCE = "https://studi980-pgr.github.io/stroyslova/";
+const SOURCE = "https://raw.githubusercontent.com/Studi980-pgr/stroyslova/main/";
 
 // iCloud when it is on (shared with other devices), this phone otherwise.
 let fm;
