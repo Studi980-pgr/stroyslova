@@ -441,14 +441,14 @@ function buildWidget() {
     longMeaning ? [examples[slot % examples.length]] :
     [examples[slot % examples.length], examples[(slot + 1) % examples.length]].filter((e, i, a) => a.indexOf(e) === i);
 
-  // Three parts — the word, its meaning, the examples — with the free room
-  // split between them, so the card is filled top to bottom whatever the
-  // length of the word or the meaning.
-  w.addSpacer();
+  // The word sits close under the label; the free room goes between the
+  // meaning and the examples, so the card is filled top to bottom whatever
+  // the length of the word or the meaning.
+  w.addSpacer(family === "small" ? 4 : 8);
   const head = w.addStack();
   head.bottomAlignContent();
   const en = head.addText(word.en);
-  en.font = Font.boldSystemFont(family === "small" ? 22 : 30);
+  en.font = Font.boldSystemFont(family === "small" ? 22 : 32);
   en.textColor = ink;
   en.minimumScaleFactor = 0.5;
   en.lineLimit = 1;
@@ -466,7 +466,7 @@ function buildWidget() {
     ipa.textColor = muted;
   }
 
-  w.addSpacer(4);
+  w.addSpacer(family === "small" ? 4 : 7);
   const ru = w.addText(word.ru);
   ru.font = Font.systemFont(family === "small" ? 13 : 16);
   ru.textColor = ink;
