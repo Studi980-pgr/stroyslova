@@ -418,22 +418,24 @@ function buildWidget() {
     longMeaning ? [examples[slot % examples.length]] :
     [examples[slot % examples.length], examples[(slot + 1) % examples.length]].filter((e, i, a) => a.indexOf(e) === i);
 
-  // Flexible space above and below the word block: whatever room the text
-  // leaves is split evenly, so the card never looks top-heavy.
+  // Three parts — the word, its meaning, the examples — with the free room
+  // split between them, so the card is filled top to bottom whatever the
+  // length of the word or the meaning.
   w.addSpacer();
   const head = w.addStack();
   head.bottomAlignContent();
   const en = head.addText(word.en);
-  en.font = Font.boldSystemFont(family === "small" ? 22 : 28);
+  en.font = Font.boldSystemFont(family === "small" ? 22 : 30);
   en.textColor = ink;
   en.minimumScaleFactor = 0.5;
   en.lineLimit = 1;
   if (word.ipa && family !== "small") {
     head.addSpacer(8);
     const ipa = head.addText(word.ipa);
-    ipa.font = Font.systemFont(14);
+    ipa.font = Font.systemFont(15);
     ipa.textColor = muted;
     ipa.lineLimit = 1;
+    ipa.minimumScaleFactor = 0.7;
   }
   if (word.ipa && family === "small") {
     const ipa = w.addText(word.ipa);
@@ -441,26 +443,41 @@ function buildWidget() {
     ipa.textColor = muted;
   }
 
-  w.addSpacer(3);
+  w.addSpacer(4);
   const ru = w.addText(word.ru);
-  ru.font = Font.systemFont(family === "small" ? 13 : 15);
+  ru.font = Font.systemFont(family === "small" ? 13 : 16);
   ru.textColor = ink;
   ru.lineLimit = family === "small" ? 3 : 2;
   ru.minimumScaleFactor = 0.85;
 
-  for (const ex of shown) {
-    w.addSpacer(shown.length > 1 ? 4 : 6);
-    const e = w.addText(ex.en);
-    e.font = Font.italicSystemFont(13);
+  if (shown.length) w.addSpacer();
+  shown.forEach((ex, i) => {
+    if (i > 0) w.addSpacer(6);
+    const twoLines = shown.length === 1;
+    // An accent bar on the left sets the example apart from the meaning.
+    const row = w.addStack();
+    row.layoutHorizontally();
+    row.spacing = 8;
+    const bar = row.addStack();
+    bar.size = new Size(3, twoLines ? 62 : 31);
+    bar.backgroundColor = accent;
+    bar.cornerRadius = 1.5;
+    const col = row.addStack();
+    col.layoutVertically();
+    col.spacing = 1;
+    const e = col.addText(ex.en);
+    e.font = Font.italicSystemFont(13.5);
     e.textColor = ink;
-    e.lineLimit = shown.length > 1 ? 1 : 2;
+    e.lineLimit = twoLines ? 2 : 1;
     e.minimumScaleFactor = 0.75;
-    const er = w.addText(ex.ru);
+    const er = col.addText(ex.ru);
     er.font = Font.systemFont(12);
     er.textColor = muted;
-    er.lineLimit = shown.length > 1 ? 1 : 2;
+    er.lineLimit = twoLines ? 2 : 1;
     er.minimumScaleFactor = 0.75;
-  }
-  w.addSpacer();
+  });
+  // With examples the last one sits on the bottom edge; without them the
+  // word and meaning stay centred.
+  if (!shown.length) w.addSpacer();
   return w;
 }
