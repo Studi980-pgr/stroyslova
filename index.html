@@ -1,0 +1,808 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light dark;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>Стройслова</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=Noto+Sans:wght@400&display=swap">
+<style>
+/* Layout: one narrow column like a field notebook; a sticky action bar at the bottom where the thumb is. */
+:root {
+  --paper: #eef2f6;
+  --card: #ffffff;
+  --ink: #142033;
+  --muted: #5a6879;
+  --line: #d6dde6;
+  --accent: #1d5bd0;
+  --accent-ink: #ffffff;
+  --tile: #e3eaf4;
+  --good: #1d8549;
+  --good-bg: #dcf1e4;
+  --bad: #c2352b;
+  --bad-bg: #f8e0dd;
+  --level: #e0a100;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, sans-serif;
+  --ipa: "Noto Sans", "Lucida Grande", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e131a; --card: #17202b; --ink: #e7edf4; --muted: #92a0b2; --line: #2a3542;
+    --accent: #5a8ef2; --accent-ink: #0b1220; --tile: #223041; --good: #46c27b; --good-bg: #173527;
+    --bad: #f0786c; --bad-bg: #3a1d1b; --level: #f0bf3a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e131a; --card: #17202b; --ink: #e7edf4; --muted: #92a0b2; --line: #2a3542;
+  --accent: #5a8ef2; --accent-ink: #0b1220; --tile: #223041; --good: #46c27b; --good-bg: #173527;
+  --bad: #f0786c; --bad-bg: #3a1d1b; --level: #f0bf3a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.4;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  -webkit-tap-highlight-color: transparent;
+}
+.app { max-width: 560px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; padding-block: 14px 0; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ipa { font-family: var(--ipa); color: var(--muted); }
+
+header.top { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.seg { flex: none; }
+.brand { font-family: var(--display); font-weight: 700; font-size: 22px; white-space: nowrap; letter-spacing: 0.02em; text-transform: uppercase; }
+.seg { display: inline-flex; background: var(--tile); border-radius: 999px; padding: 3px; }
+.seg button { padding: 6px 12px; white-space: nowrap; border-radius: 999px; font-weight: 600; font-size: 15px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+
+main { flex: 1; display: flex; flex-direction: column; gap: 14px; padding-block: 16px 24px; }
+.label { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-weight: 700; font-size: 34px; line-height: 1.05; margin: 0; text-wrap: balance; }
+
+.sheet { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.titleblock { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+.titleblock div { padding: 10px 0; }
+.titleblock div + div { border-left: 1px solid var(--line); padding-left: 14px; }
+.big { font-family: var(--display); font-weight: 700; font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums; }
+.levels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; align-items: end; height: 64px; }
+.levels .bar { background: var(--accent); border-radius: 4px 4px 0 0; min-height: 3px; opacity: .85; }
+.levels .bar.zero { background: var(--line); }
+.levelnames { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 11px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.note { font-size: 14px; color: var(--muted); }
+.sheet.now { gap: 8px; }
+
+.bar-bottom { position: sticky; bottom: 0; background: var(--paper); padding-block: 10px calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--line); }
+.btn { min-height: 50px; padding: 0 18px; border-radius: 12px; font-weight: 600; font-size: 17px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); flex: 1; }
+.btn.ghost { background: var(--tile); }
+.btn[disabled] { opacity: .45; cursor: default; }
+
+.progress { height: 6px; background: var(--tile); border-radius: 99px; overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--accent); transition: width .25s ease; }
+.exhead { display: flex; align-items: center; gap: 10px; }
+.exhead .progress { flex: 1; }
+.iconbtn { width: 40px; height: 40px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--tile); flex: none; }
+.iconbtn svg { width: 20px; height: 20px; fill: currentColor; }
+
+.word { font-family: var(--display); font-weight: 700; font-size: 40px; line-height: 1; overflow-wrap: anywhere; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.prompt { font-size: 21px; font-weight: 500; line-height: 1.35; }
+.prompt .gap { display: inline-block; min-width: 80px; border-bottom: 2px solid var(--accent); }
+.sub { color: var(--muted); font-size: 15px; }
+.example { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; display: flex; gap: 8px; align-items: flex-start; }
+.example > div { flex: 1; min-width: 0; }
+
+.options { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.opt { text-align: left; background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 17px; font-weight: 500; min-height: 54px; }
+.opt.good { border-color: var(--good); background: var(--good-bg); }
+.opt.bad { border-color: var(--bad); background: var(--bad-bg); }
+.opt.dim { opacity: .5; }
+
+.answerline { min-height: 58px; border-bottom: 2px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; padding-bottom: 8px; }
+.slot { font-family: var(--display); font-weight: 700; font-size: 32px; min-width: 18px; text-align: center; line-height: 1.1; }
+.slot.empty { color: var(--muted); opacity: .45; }
+.slot.space { min-width: 14px; }
+.chipline { font-size: 19px; font-weight: 500; }
+.tiles { display: flex; flex-wrap: wrap; gap: 8px; }
+.tile { background: var(--tile); border-radius: 10px; min-width: 46px; min-height: 48px; padding: 0 12px; font-size: 20px; font-weight: 600; transition: transform .1s ease, background .15s ease; }
+.tile.letter { font-family: var(--display); font-size: 26px; }
+.tile.used { visibility: hidden; }
+.tile.wrong { background: var(--bad-bg); color: var(--bad); animation: shake .3s; }
+.revealed { color: var(--bad); }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+input.typed { width: 100%; font: 600 26px var(--body); padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); }
+.hint { font-family: var(--display); font-size: 22px; letter-spacing: 0.25em; color: var(--muted); }
+
+.feedback { border-radius: 12px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
+.feedback.good { background: var(--good-bg); }
+.feedback.bad { background: var(--bad-bg); }
+.feedback b { display: block; }
+.feedback .fb-body { flex: 1; min-width: 0; }
+
+.list { display: flex; flex-direction: column; gap: 8px; }
+.listitem { display: flex; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; text-align: left; width: 100%; }
+.listitem > div { flex: 1; min-width: 0; }
+.listitem .en { font-weight: 600; }
+.listitem .ru { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pips { display: inline-flex; gap: 2px; flex: none; }
+.pips i { width: 5px; height: 14px; border-radius: 2px; background: var(--line); }
+.pips i.on { background: var(--level); }
+.status { font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="app" id="app"></div>
+
+<script>
+const Engine = (() => {
+  const INTERVALS = [0, 1, 2, 4, 7, 14, 30];
+  const NEW_PER_SESSION = 3;
+  const MAX_REVIEWS = 12;
+
+  const idOf = (w) => w.en.toLowerCase();
+
+  // Day number of the local calendar date — same numbering as the Mac app.
+  function today(d = new Date()) {
+    return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+  }
+
+  function shuffle(items) {
+    const a = items.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function shuffledDifferently(items) {
+    if (new Set(items).size < 2) return items.slice();
+    for (let n = 0; n < 10; n++) {
+      const s = shuffle(items);
+      if (s.join("\u0001") !== items.join("\u0001")) return s;
+    }
+    return items.slice().reverse();
+  }
+
+  const boxOf = (progress, w) => (progress[idOf(w)] && progress[idOf(w)].box) || 0;
+  const dueOf = (progress, w) => (progress[idOf(w)] && progress[idOf(w)].due) || 0;
+
+  function dueWords(words, progress, day = today()) {
+    return words.filter((w) => boxOf(progress, w) > 0 && dueOf(progress, w) <= day);
+  }
+  function newWords(words, progress) {
+    return words.filter((w) => boxOf(progress, w) === 0);
+  }
+
+  // Exercises a word gets, by how well it is known. Producing the word
+  // (spelling, then typing) is in every block: recognising is not remembering.
+  function plan(box) {
+    const two = (pool) => shuffle(pool).slice(0, 2);
+    if (box === 0) return ["intro", "meaning", "listen", "letters", "fillBlank"];
+    if (box <= 2) { const p = two(["listen", "toEnglish", "fillBlank", "meaning"]); return [p[0], "letters", p[1]]; }
+    if (box <= 4) { const p = two(["fillBlank", "buildSentence", "toEnglish", "listen"]); return [p[0], "typing", p[1]]; }
+    const p = two(["dictation", "buildSentence", "fillBlank"]);
+    return [p[0], "typing", p[1]];
+  }
+
+  const NEEDS_EXAMPLE = ["fillBlank", "buildSentence", "dictation"];
+  const hasExamples = (w) => Array.isArray(w.examples) && w.examples.length > 0;
+
+  function make(kind, word, words, retry = false) {
+    if (!hasExamples(word) && NEEDS_EXAMPLE.includes(kind)) kind = kind === "dictation" ? "listen" : "toEnglish";
+    const example = hasExamples(word)
+      ? word.examples[Math.floor(Math.random() * word.examples.length)]
+      : { en: word.en, ru: word.ru };
+    const others = shuffle(words.filter((w) => idOf(w) !== idOf(word))).slice(0, 3);
+    const ex = { kind, word, example, options: [], answer: "", pieces: [], target: [], retry };
+    if (kind === "meaning") {
+      ex.options = shuffle([word.ru, ...others.map((o) => o.ru)]);
+      ex.answer = word.ru;
+    } else if (kind === "listen" || kind === "toEnglish" || kind === "fillBlank") {
+      ex.options = shuffle([word.en, ...others.map((o) => o.en)]);
+      ex.answer = word.en;
+    } else if (kind === "letters") {
+      ex.target = [...word.en].filter((c) => c !== " ");
+      ex.pieces = shuffledDifferently(ex.target);
+    } else if (kind === "buildSentence" || kind === "dictation") {
+      ex.target = example.en.split(" ");
+      ex.pieces = shuffledDifferently(ex.target);
+    } else if (kind === "typing") {
+      ex.answer = word.en;
+    }
+    return ex;
+  }
+
+  function buildSession(words, progress, opts = {}) {
+    let fresh = [], reviews = [];
+    if (opts.only) {
+      fresh = [opts.only];
+    } else {
+      if (!opts.extraNew) {
+        reviews = dueWords(words, progress)
+          .sort((a, b) => dueOf(progress, a) - dueOf(progress, b))
+          .slice(0, MAX_REVIEWS);
+      }
+      fresh = newWords(words, progress).slice(0, NEW_PER_SESSION);
+    }
+    const queue = [];
+    const remaining = {};
+    for (const w of [...fresh, ...reviews]) {
+      const kinds = plan(boxOf(progress, w));
+      remaining[idOf(w)] = kinds.length;
+      for (const k of kinds) queue.push(make(k, w, words));
+    }
+    return { queue, pos: 0, remaining, failed: new Set(), total: fresh.length + reviews.length, clean: 0 };
+  }
+
+  // A finished block moves the word between boxes.
+  function score(current, failed, day = today()) {
+    const p = { box: (current && current.box) || 0, due: (current && current.due) || 0, t: Date.now() };
+    if (failed) {
+      p.box = Math.max(1, p.box - 1);
+      p.due = day + 1;
+    } else {
+      p.box = Math.min(INTERVALS.length - 1, p.box + 1);
+      p.due = day + INTERVALS[p.box];
+    }
+    return p;
+  }
+
+  // Two copies of the progress (this device and the shared file): for each
+  // word keep the one changed last.
+  function merge(a, b) {
+    const out = Object.assign({}, a || {});
+    for (const [id, p] of Object.entries(b || {})) {
+      const mine = out[id];
+      if (!mine || (p.t || 0) > (mine.t || 0)) out[id] = p;
+    }
+    return out;
+  }
+
+  // The few words to keep in front of the eyes — the same ones the next
+  // training will bring: due first, then the next new ones, then words being
+  // learnt. The Mac's Cyclop picks them the same way.
+  function focusSet(words, progress, n = 3, day = today()) {
+    const due = dueWords(words, progress, day).sort((a, b) => dueOf(progress, a) - dueOf(progress, b));
+    const fresh = newWords(words, progress);
+    const learning = words
+      .filter((w) => { const b = boxOf(progress, w); return b >= 1 && b <= 4 && dueOf(progress, w) > day; })
+      .sort((a, b) => dueOf(progress, a) - dueOf(progress, b));
+    const out = [];
+    for (const w of [...due, ...fresh, ...learning]) {
+      if (!out.includes(w)) out.push(w);
+      if (out.length === n) break;
+    }
+    if (!out.length && words.length) out.push(words[day % words.length]);
+    return out;
+  }
+
+  // The word to keep in front of the eyes: due today first, then words being
+  // learnt (rotating through the day), then the next new one.
+  function focusWord(words, progress, now = new Date()) {
+    const day = today(now);
+    const due = dueWords(words, progress, day).sort((a, b) => dueOf(progress, a) - dueOf(progress, b));
+    const learning = words.filter((w) => { const b = boxOf(progress, w); return b >= 1 && b <= 4; });
+    const fresh = newWords(words, progress);
+    const slot = Math.floor(now.getHours() / 3);
+    if (due.length) return { word: due[slot % due.length], reason: "due", due: due.length };
+    if (learning.length) return { word: learning[(day + slot) % learning.length], reason: "learning", due: 0 };
+    if (fresh.length) return { word: fresh[0], reason: "new", due: 0 };
+    return words.length ? { word: words[(day + slot) % words.length], reason: "known", due: 0 } : null;
+  }
+
+  function blank(sentence, word) {
+    const i = sentence.toLowerCase().indexOf(word.toLowerCase());
+    if (i < 0) return sentence;
+    return sentence.slice(0, i) + "_____" + sentence.slice(i + word.length);
+  }
+
+  const normalize = (s) => s.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'\- ]/g, "").replace(/\s+/g, " ").trim();
+
+  function distance(a, b) {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++)
+      for (let j = 1; j <= b.length; j++)
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  }
+
+  // "exact", "typo" (one slip in a longer word — counted right, spelling shown), or "wrong".
+  function checkTyped(input, answer) {
+    const a = normalize(input), b = normalize(answer);
+    if (!a) return "wrong";
+    if (a === b) return "exact";
+    if (b.length >= 5 && distance(a, b) === 1) return "typo";
+    return "wrong";
+  }
+
+  return { INTERVALS, NEW_PER_SESSION, MAX_REVIEWS, idOf, today, shuffle, dueWords, newWords, boxOf, dueOf, plan, make, buildSession, score, merge, focusSet, focusWord, blank, checkTyped, hasExamples };
+})();
+if (typeof module !== "undefined") module.exports = Engine;
+
+const BASE_WORDS = [{"en":"submittal","ipa":"/səbˈmɪtəl/","ru":"документ на согласование (образцы, техпаспорта, чертежи от подрядчика)","examples":[{"en":"Please send the window submittal to the architect by Friday.","ru":"Пожалуйста, отправь документы по окнам на согласование архитектору до пятницы."},{"en":"The submittal for the doors was rejected.","ru":"Документы по дверям на согласование отклонили."},{"en":"We are still waiting for the tile submittal.","ru":"Мы всё ещё ждём документы по плитке на согласование."}]},{"en":"RFI","ipa":"/ˌɑr ɛf ˈaɪ/","ru":"запрос информации (Request for Information) — официальный вопрос проектировщику","examples":[{"en":"The framer sent an RFI about the beam size.","ru":"Плотник отправил запрос информации по размеру балки."},{"en":"Please answer the RFI by Wednesday.","ru":"Пожалуйста, ответьте на запрос информации до среды."},{"en":"I logged a new RFI about the window height.","ru":"Я зарегистрировал новый запрос по высоте окна."}]},{"en":"change order","ipa":"/ˈtʃeɪndʒ ˌɔrdɚ/","ru":"допсоглашение на изменение работ (цена/сроки)","examples":[{"en":"The owner signed the change order for the extra outlets.","ru":"Заказчик подписал допсоглашение на дополнительные розетки."},{"en":"This change order adds two days to the schedule.","ru":"Это допсоглашение добавляет два дня к графику."},{"en":"Send the change order to the client for approval.","ru":"Отправь допсоглашение клиенту на утверждение."}]},{"en":"punch list","ipa":"/ˈpʌntʃ ˌlɪst/","ru":"список недоделок перед сдачей","examples":[{"en":"We walked the unit and wrote a punch list of twenty items.","ru":"Мы обошли квартиру и составили список из двадцати недоделок."},{"en":"The painter is fixing items on the punch list.","ru":"Маляр исправляет пункты из списка недоделок."},{"en":"Is the punch list complete?","ru":"Список недоделок закрыт?"}]},{"en":"scope of work","ipa":"/ˈskoʊp əv ˈwɝk/","ru":"объём работ","examples":[{"en":"That item is not in our scope of work.","ru":"Этот пункт не входит в наш объём работ."},{"en":"Read the scope of work before you sign.","ru":"Прочитай объём работ, прежде чем подписывать."},{"en":"The client changed the scope of work again.","ru":"Клиент снова изменил объём работ."}]},{"en":"bid","ipa":"/bɪd/","ru":"предложение подрядчика с ценой (заявка на тендер)","examples":[{"en":"We received three bids for the roofing work.","ru":"Мы получили три предложения на кровельные работы."},{"en":"Their bid is ten percent lower.","ru":"Их предложение на десять процентов ниже."},{"en":"We need one more bid for the electrical work.","ru":"Нам нужно ещё одно предложение на электрику."}]},{"en":"estimate","ipa":"/ˈɛstəmət/","ru":"смета, оценка стоимости","examples":[{"en":"Can you update the estimate after the site visit?","ru":"Можешь обновить смету после выезда на объект?"},{"en":"The estimate does not include permits.","ru":"Смета не включает разрешения."},{"en":"Our estimate for the kitchen is forty thousand dollars.","ru":"Наша смета на кухню — сорок тысяч долларов."}]},{"en":"schedule","ipa":"/ˈskɛdʒul/","ru":"график работ","examples":[{"en":"The drywall crew is two days behind schedule.","ru":"Бригада по гипсокартону отстаёт от графика на два дня."},{"en":"I updated the schedule for next week.","ru":"Я обновил график на следующую неделю."},{"en":"Can we finish on schedule?","ru":"Мы успеем закончить по графику?"}]},{"en":"deadline","ipa":"/ˈdɛdˌlaɪn/","ru":"крайний срок","examples":[{"en":"The deadline for the bid is next Monday.","ru":"Крайний срок подачи предложения — следующий понедельник."},{"en":"We missed the deadline by one day.","ru":"Мы пропустили срок на один день."},{"en":"What is the deadline for the drawings?","ru":"Какой срок сдачи чертежей?"}]},{"en":"permit","ipa":"/ˈpɝmɪt/","ru":"разрешение (на строительство)","examples":[{"en":"We can't start framing until the city issues the permit.","ru":"Мы не можем начать каркас, пока город не выдаст разрешение."},{"en":"The permit expires in six months.","ru":"Разрешение истекает через шесть месяцев."},{"en":"Keep a copy of the permit on site.","ru":"Держи копию разрешения на объекте."}]},{"en":"inspection","ipa":"/ɪnˈspɛkʃən/","ru":"инспекция, проверка инспектором","examples":[{"en":"The electrical inspection is on Tuesday morning.","ru":"Проверка электрики — во вторник утром."},{"en":"We passed the plumbing inspection.","ru":"Мы прошли проверку сантехники."},{"en":"Please book the final inspection.","ru":"Пожалуйста, запиши нас на финальную проверку."}]},{"en":"general contractor","ipa":"/ˈdʒɛnərəl ˈkɑnˌtræktɚ/","ru":"генподрядчик (GC)","examples":[{"en":"The general contractor manages all the trades on site.","ru":"Генподрядчик управляет всеми бригадами на объекте."},{"en":"Our company is the general contractor on this job.","ru":"Наша компания — генподрядчик на этом объекте."},{"en":"Ask the general contractor about the delay.","ru":"Спроси генподрядчика о задержке."}]},{"en":"subcontractor","ipa":"/ˌsʌbˈkɑnˌtræktɚ/","ru":"субподрядчик","examples":[{"en":"Call the plumbing subcontractor and confirm the start date.","ru":"Позвони субподрядчику по сантехнике и подтверди дату начала."},{"en":"Each subcontractor must have insurance.","ru":"Каждый субподрядчик должен иметь страховку."},{"en":"The subcontractor did not show up today.","ru":"Субподрядчик сегодня не пришёл."}]},{"en":"supplier","ipa":"/səˈplaɪɚ/","ru":"поставщик","examples":[{"en":"The supplier says the tiles will arrive on Thursday.","ru":"Поставщик говорит, что плитка приедет в четверг."},{"en":"Our supplier raised the price of lumber.","ru":"Наш поставщик поднял цену на пиломатериалы."},{"en":"Find another supplier for the faucets.","ru":"Найди другого поставщика смесителей."}]},{"en":"lead time","ipa":"/ˈlid ˌtaɪm/","ru":"срок поставки (от заказа до доставки)","examples":[{"en":"The windows have a six-week lead time.","ru":"Срок поставки окон — шесть недель."},{"en":"Check the lead time before you order.","ru":"Проверь срок поставки перед заказом."},{"en":"The lead time for cabinets is eight weeks.","ru":"Срок поставки шкафов — восемь недель."}]},{"en":"invoice","ipa":"/ˈɪnˌvɔɪs/","ru":"счёт на оплату","examples":[{"en":"The electrician sent his invoice for the first phase.","ru":"Электрик прислал счёт за первый этап."},{"en":"I will pay the invoice on Friday.","ru":"Я оплачу счёт в пятницу."},{"en":"This invoice is missing the job number.","ru":"В этом счёте нет номера объекта."}]},{"en":"lien waiver","ipa":"/ˈlin ˌweɪvɚ/","ru":"отказ от права залога (документ, который подрядчик подписывает при оплате)","examples":[{"en":"We need a lien waiver before we release the payment.","ru":"Нам нужен отказ от права залога, прежде чем мы проведём оплату."},{"en":"Every subcontractor signs a lien waiver.","ru":"Каждый субподрядчик подписывает отказ от права залога."},{"en":"Attach the lien waiver to the invoice.","ru":"Приложи отказ от права залога к счёту."}]},{"en":"budget","ipa":"/ˈbʌdʒɪt/","ru":"бюджет","examples":[{"en":"We are still within budget on this project.","ru":"Мы всё ещё укладываемся в бюджет по этому проекту."},{"en":"The new windows are over budget.","ru":"Новые окна выходят за бюджет."},{"en":"Let's review the budget with the owner.","ru":"Давай пересмотрим бюджет с заказчиком."}]},{"en":"job site","ipa":"/ˈdʒɑb ˌsaɪt/","ru":"стройплощадка, объект","examples":[{"en":"Everyone on the job site must wear a hard hat.","ru":"Все на стройплощадке обязаны носить каску."},{"en":"I will be on the job site all morning.","ru":"Я буду на объекте всё утро."},{"en":"Keep the job site clean.","ru":"Держите стройплощадку в чистоте."}]},{"en":"site visit","ipa":"/ˈsaɪt ˌvɪzɪt/","ru":"выезд на объект","examples":[{"en":"Let's schedule a site visit with the client for Wednesday.","ru":"Давай назначим выезд на объект с клиентом на среду."},{"en":"The architect has a site visit at ten.","ru":"У архитектора выезд на объект в десять."},{"en":"Take photos during the site visit.","ru":"Сделай фото во время выезда на объект."}]},{"en":"walkthrough","ipa":"/ˈwɔkˌθru/","ru":"обход объекта (с клиентом или инспектором)","examples":[{"en":"The final walkthrough with the owner is on Monday.","ru":"Финальный обход объекта с заказчиком — в понедельник."},{"en":"We found three problems during the walkthrough.","ru":"Во время обхода мы нашли три проблемы."},{"en":"Schedule a walkthrough with the inspector.","ru":"Назначь обход с инспектором."}]},{"en":"drawings","ipa":"/ˈdrɔɪŋz/","ru":"чертежи","examples":[{"en":"Check the drawings before you order the doors.","ru":"Проверь чертежи, прежде чем заказывать двери."},{"en":"The drawings show a door here.","ru":"На чертежах здесь показана дверь."},{"en":"Print the new drawings for the crew.","ru":"Распечатай новые чертежи для бригады."}]},{"en":"as-built drawings","ipa":"/ˈæzˌbɪlt ˈdrɔɪŋz/","ru":"исполнительные чертежи (как построено по факту)","examples":[{"en":"The owner asked for as-built drawings at closeout.","ru":"Заказчик попросил исполнительные чертежи при закрытии проекта."},{"en":"Update the as-built drawings after the change.","ru":"Обнови исполнительные чертежи после изменения."},{"en":"The as-built drawings are in the shared folder.","ru":"Исполнительные чертежи лежат в общей папке."}]},{"en":"meeting minutes","ipa":"/ˈmitɪŋ ˈmɪnɪts/","ru":"протокол встречи","examples":[{"en":"I'll send the meeting minutes to everyone today.","ru":"Я сегодня разошлю всем протокол встречи."},{"en":"Please review the meeting minutes.","ru":"Пожалуйста, просмотри протокол встречи."},{"en":"The meeting minutes list all open items.","ru":"В протоколе встречи перечислены все открытые вопросы."}]},{"en":"daily report","ipa":"/ˈdeɪli rɪˈpɔrt/","ru":"ежедневный отчёт (кто был, что сделано, погода, проблемы)","examples":[{"en":"The superintendent fills out a daily report every evening.","ru":"Прораб каждый вечер заполняет ежедневный отчёт."},{"en":"Add the weather to the daily report.","ru":"Добавь погоду в ежедневный отчёт."},{"en":"I sent the daily report to the project manager.","ru":"Я отправил ежедневный отчёт проект-менеджеру."}]},{"en":"delay","ipa":"/dɪˈleɪ/","ru":"задержка","examples":[{"en":"The rain caused a three-day delay.","ru":"Дождь вызвал задержку на три дня."},{"en":"Tell the client about the delay today.","ru":"Сообщи клиенту о задержке сегодня."},{"en":"The inspection caused a short delay.","ru":"Проверка вызвала небольшую задержку."}]},{"en":"milestone","ipa":"/ˈmaɪlˌstoʊn/","ru":"ключевой этап","examples":[{"en":"Passing the framing inspection is a big milestone.","ru":"Пройти проверку каркаса — важный этап."},{"en":"The next milestone is the roof.","ru":"Следующий ключевой этап — крыша."},{"en":"The client pays at each milestone.","ru":"Клиент платит на каждом ключевом этапе."}]},{"en":"on hold","ipa":"/ɑn ˈhoʊld/","ru":"приостановлено","examples":[{"en":"The kitchen work is on hold until the cabinets arrive.","ru":"Работы на кухне приостановлены, пока не привезут шкафы."},{"en":"The project is on hold until the permit is ready.","ru":"Проект приостановлен, пока не готово разрешение."},{"en":"Why is the order on hold?","ru":"Почему заказ приостановлен?"}]},{"en":"follow up","ipa":"/ˌfɑloʊ ˈʌp/","ru":"напомнить, уточнить, вернуться к вопросу","examples":[{"en":"I'll follow up with the supplier tomorrow.","ru":"Я завтра уточню у поставщика."},{"en":"Please follow up with the architect about the RFI.","ru":"Пожалуйста, уточни у архитектора по запросу информации."},{"en":"I will follow up by email.","ru":"Я напомню по почте."}]},{"en":"approve","ipa":"/əˈpruv/","ru":"утвердить, одобрить","examples":[{"en":"The architect needs to approve the tile samples.","ru":"Архитектор должен утвердить образцы плитки."},{"en":"Did the owner approve the change order?","ru":"Заказчик утвердил допсоглашение?"},{"en":"The city must approve the drawings first.","ru":"Сначала город должен утвердить чертежи."}]},{"en":"superintendent","ipa":"/ˌsupɚɪnˈtɛndənt/","ru":"прораб, начальник участка (super)","examples":[{"en":"Ask the superintendent when the crew can start.","ru":"Спроси прораба, когда бригада может начать."},{"en":"The superintendent opens the site at seven.","ru":"Прораб открывает объект в семь."},{"en":"Our superintendent checks the work every day.","ru":"Наш прораб проверяет работу каждый день."}]},{"en":"framing","ipa":"/ˈfreɪmɪŋ/","ru":"каркас (деревянный), каркасные работы","examples":[{"en":"Framing will be finished by the end of the week.","ru":"Каркас закончат к концу недели."},{"en":"The framing inspection is tomorrow.","ru":"Проверка каркаса — завтра."},{"en":"We need more lumber for the framing.","ru":"Нам нужно больше пиломатериала для каркаса."}]},{"en":"foundation","ipa":"/faʊnˈdeɪʃən/","ru":"фундамент","examples":[{"en":"They poured the foundation last Friday.","ru":"Фундамент залили в прошлую пятницу."},{"en":"There is a crack in the foundation.","ru":"В фундаменте трещина."},{"en":"The foundation needs seven days to cure.","ru":"Фундаменту нужно семь дней, чтобы набрать прочность."}]},{"en":"drywall","ipa":"/ˈdraɪˌwɔl/","ru":"гипсокартон","examples":[{"en":"The drywall is up in both bedrooms.","ru":"Гипсокартон в обеих спальнях уже смонтирован."},{"en":"Order forty sheets of drywall.","ru":"Закажи сорок листов гипсокартона."},{"en":"The drywall needs one more coat of mud.","ru":"Гипсокартону нужен ещё один слой шпаклёвки."}]},{"en":"ADU","ipa":"/ˌeɪ di ˈju/","ru":"дополнительный жилой дом на участке (Accessory Dwelling Unit)","examples":[{"en":"The owner wants to build an ADU in the backyard.","ru":"Заказчик хочет построить дополнительный дом на заднем дворе."},{"en":"The ADU will have one bedroom.","ru":"В дополнительном доме будет одна спальня."},{"en":"Many owners in Los Angeles build an ADU to rent it out.","ru":"Многие владельцы в Лос-Анджелесе строят дополнительный дом, чтобы сдавать его."}]}];
+/*__HOST_DATA__*/
+</script>
+<script>
+(() => {
+  const app = document.getElementById("app");
+  const E = Engine;
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  // ---------- Storage ----------
+  // Three homes for the same page:
+  //  · Scriptable on the iPhone: data comes in with the page and goes back to
+  //    a file in iCloud Drive, which the widget and Cyclop on the Mac read too.
+  //  · Claude: the artifact's database.
+  //  · Any browser (the public site): this browser's storage.
+  const HOST = (window.__STROY__ && window.__STROY__.host) || (window.claude && window.claude.use ? "claude" : "web");
+  const LS_KEY = "stroyslova.progress.v1";
+  const LS_WORDS = "stroyslova.custom.v1";
+  let progress = {}, custom = [];
+  if (HOST === "scriptable") {
+    progress = window.__STROY__.progress || {};
+    custom = window.__STROY__.custom || [];
+  } else {
+    try { progress = JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {}; } catch (e) { progress = {}; }
+    try { custom = JSON.parse(localStorage.getItem(LS_WORDS) || "[]") || []; } catch (e) { custom = []; }
+  }
+  const base = (window.__STROY__ && Array.isArray(window.__STROY__.words) && window.__STROY__.words.length) ? window.__STROY__.words : BASE_WORDS;
+  let WORDS = [];
+  function rebuildWords() {
+    const seen = new Set(base.map((w) => w.en.toLowerCase()));
+    WORDS = base.concat(custom.filter((w) => !seen.has(w.en.toLowerCase())));
+  }
+  rebuildWords();
+
+  let db = null, saveTimer = null;
+  let syncState = HOST === "scriptable" ? "icloud" : "local";
+
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, 300);
+  }
+  function flush() {
+    if (HOST === "scriptable") {
+      // Scriptable intercepts this address and writes the file; the page stays put.
+      const payload = encodeURIComponent(JSON.stringify({ progress, custom }));
+      window.location.href = "stroyslova://save?d=" + payload;
+      return;
+    }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(progress)); localStorage.setItem(LS_WORDS, JSON.stringify(custom)); } catch (e) {}
+    if (db) {
+      db.doc("progress/main").set({ words: progress, custom, updated: Date.now() })
+        .then(() => { syncState = "cloud"; })
+        .catch(() => { syncState = "local"; });
+    }
+  }
+
+  if (HOST === "claude") (async () => {
+    try {
+      db = await window.claude.use("db");
+      if (!db) return;
+      const snap = await db.doc("progress/main").get();
+      if (snap.exists) {
+        const data = snap.data();
+        progress = E.merge(progress, data.words || {});
+        if (Array.isArray(data.custom) && data.custom.length && !custom.length) { custom = data.custom; rebuildWords(); }
+      }
+      syncState = "cloud";
+      flush();
+      if (!state.session) render();
+    } catch (e) { db = null; }
+  })();
+
+  // ---------- Speech ----------
+  const NOVELTY = /albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley/i;
+  let voices = [];
+  function loadVoices() { try { voices = speechSynthesis.getVoices(); } catch (e) { voices = []; } }
+  if ("speechSynthesis" in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+  function bestVoice(lang) {
+    const want = lang.toLowerCase();
+    let best = null, bestScore = -99;
+    for (const v of voices) {
+      const l = (v.lang || "").replace("_", "-").toLowerCase();
+      if (l !== want) continue;
+      let s = 0;
+      if (/premium/i.test(v.name) || /premium/i.test(v.voiceURI)) s += 4;
+      if (/enhanced|improved|улучш/i.test(v.name) || /enhanced/i.test(v.voiceURI)) s += 3;
+      if (/ava|zoe|samantha|evan|nathan|milena|katya/i.test(v.name)) s += 1;
+      if (NOVELTY.test(v.name)) s -= 10;
+      if (s > bestScore) { bestScore = s; best = v; }
+    }
+    return best;
+  }
+  function speak(text, lang = "en-US", slow = false) {
+    if (!("speechSynthesis" in window) || !text) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      const v = bestVoice(lang);
+      if (v) u.voice = v;
+      u.rate = slow ? 0.62 : 0.95;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  const ICON_SPEAK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>';
+  const ICON_SLOW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9.5c-.9 0-1.6.5-2 1.2C16 8 13.6 6 10.5 6 6.4 6 3 9.1 3 13v1h1.2l-.9 2.3a1 1 0 0 0 1.9.7l1.1-3h7.4l1.1 3a1 1 0 0 0 1.9-.7L16.8 14H17c.6 0 1-.4 1-1v-.6c.3.4.6.6 1 .6a1.5 1.5 0 0 0 0-3.5z"/></svg>';
+  const ICON_CLOSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/></svg>';
+  const sayBtn = (text, lang = "en", slow = false, label) =>
+    `<button class="iconbtn" data-act="say" data-text="${esc(text)}" data-lang="${lang}" data-slow="${slow ? 1 : 0}" aria-label="${esc(label || (slow ? "Слушать медленно" : "Слушать"))}">${slow ? ICON_SLOW : ICON_SPEAK}</button>`;
+
+  // ---------- State ----------
+  const state = { tab: "today", session: null, ex: null, browse: null, adding: false, formError: "" };
+  const blankEx = () => ({ picked: null, placed: [], wrong: null, wrongTaps: 0, mistake: false, done: false, revealed: false, typedResult: null, typed: "" });
+
+  const LEVEL_NAMES = ["новое", "1 день", "2 дня", "4 дня", "неделя", "2 нед.", "месяц"];
+  const TITLES = {
+    intro: "Новое слово", meaning: "Что это значит?", listen: "Послушай и выбери слово",
+    toEnglish: "Как это по-английски?", letters: "Собери слово из букв", fillBlank: "Вставь пропущенное слово",
+    buildSentence: "Собери предложение", dictation: "Послушай и собери предложение", typing: "Напиши слово",
+  };
+
+  // ---------- Render ----------
+  function render() {
+    const s = state.session;
+    let html = `<header class="top"><span class="brand">Стройслова</span>`;
+    if (!s) {
+      html += `<div class="seg" role="group" aria-label="Раздел">
+        <button data-act="tab" data-tab="today" aria-pressed="${state.tab === "today"}">Сегодня</button>
+        <button data-act="tab" data-tab="all" aria-pressed="${state.tab === "all"}">Все слова</button></div>`;
+    }
+    html += `</header>`;
+    if (s && s.pos >= s.queue.length) html += renderSummary();
+    else if (s) html += renderExercise();
+    else if (state.adding) html += renderAddForm();
+    else if (state.browse !== null) html += renderCard();
+    else html += state.tab === "today" ? renderToday() : renderList();
+    app.innerHTML = html;
+    const input = state.session ? app.querySelector("input.typed") : null;
+    if (input && state.ex && !state.ex.done) { input.value = state.ex.typed; input.focus({ preventScroll: true }); }
+  }
+
+  function renderToday() {
+    const due = E.dueWords(WORDS, progress).length;
+    const fresh = Math.min(E.NEW_PER_SESSION, E.newWords(WORDS, progress).length);
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    for (const w of WORDS) counts[E.boxOf(progress, w)]++;
+    const max = Math.max(...counts, 1);
+    const date = new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" });
+    const total = Math.min(due, E.MAX_REVIEWS) + fresh;
+    const focus = E.focusSet(WORDS, progress, 3);
+    const slot = Math.floor(Date.now() / 1800000);
+    const tag = (w) => {
+      const b = E.boxOf(progress, w);
+      if (b === 0) return "новое";
+      return E.dueOf(progress, w) <= E.today() ? "повторить" : "учу";
+    };
+    const cards = focus.map((w) => {
+      const ex = E.hasExamples(w) ? w.examples[slot % w.examples.length] : null;
+      return `<article class="sheet now">
+        <div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:baseline">
+          <span class="word" style="font-size:32px;min-width:0">${esc(w.en)}</span>
+          <span class="label" style="flex:none">${tag(w)}</span>
+        </div>
+        <div class="row">${sayBtn(w.en)}${sayBtn(w.en, "en", true)}${w.ipa ? `<span class="ipa">${esc(w.ipa)}</span>` : ""}</div>
+        <div>${esc(w.ru)}</div>
+        ${ex ? `<div class="example"><div><div>${esc(ex.en)}</div><div class="sub">${esc(ex.ru)}</div></div>${sayBtn(ex.en)}</div>` : ""}
+      </article>`;
+    }).join("");
+    return `<main>
+      <div><div class="label">${esc(date)}</div><h1>Слова сейчас</h1></div>
+      <p class="note" style="margin:0">Посмотри и послушай. Потом закрепи тренировкой — в ней будут эти же слова.</p>
+      ${cards}
+      <section class="sheet" aria-label="Слова по уровням">
+        <div class="label">Повторить сегодня: ${Math.min(due, E.MAX_REVIEWS)} · новых: ${fresh} · всего слов ${WORDS.length}</div>
+        <div class="levels">${counts.map((c) => `<div class="bar ${c ? "" : "zero"}" style="height:${Math.max(4, (c / max) * 100)}%" title="${c}"></div>`).join("")}</div>
+        <div class="levelnames">${counts.map((c, i) => `<span><b>${c}</b><br>${LEVEL_NAMES[i]}</span>`).join("")}</div>
+        <p class="note" style="margin:0">Слово без ошибок поднимается на уровень и возвращается позже: через 1, 2, 4, 7, 14, 30 дней. Ошибка опускает его, и оно вернётся завтра и ещё раз в конце тренировки.</p>
+      </section>
+      <p class="status">${syncState === "icloud" ? "Прогресс сохраняется в iCloud и виден на Mac и в виджете." : syncState === "cloud" ? "Прогресс сохраняется в облаке Claude." : "Прогресс сохраняется на этом устройстве."}</p>
+    </main>
+    <div class="bar-bottom">
+      ${total > 0 ? `<button class="btn primary" data-act="start">Тренировка · ${total} ${plural(total, "слово", "слова", "слов")}</button>`
+        : `<button class="btn primary" disabled>На сегодня всё</button>`}
+      ${due > 0 && fresh > 0 ? `<button class="btn ghost" data-act="start-new">Только новые</button>` : ""}
+      ${total === 0 && E.newWords(WORDS, progress).length ? `<button class="btn ghost" data-act="start-new">Ещё 3 новых</button>` : ""}
+    </div>`;
+  }
+
+  function renderList() {
+    const items = WORDS.map((w, i) => {
+      const box = E.boxOf(progress, w);
+      return `<button class="listitem" data-act="open" data-i="${i}">
+        <div><div class="en">${esc(w.en)} <span class="ipa" style="font-weight:400;font-size:14px">${esc(w.ipa || "")}</span>${w.custom ? ' <span class="status">· моё</span>' : ""}</div><div class="ru">${esc(w.ru)}</div></div>
+        <span class="pips" aria-label="Уровень ${box} из 6">${[1, 2, 3, 4, 5, 6].map((l) => `<i class="${l <= box ? "on" : ""}"></i>`).join("")}</span>
+      </button>`;
+    }).join("");
+    return `<main><button class="btn ghost" data-act="add-form" style="width:100%">+ Добавить своё слово</button><div class="list">${items}</div></main>`;
+  }
+
+  function renderCard() {
+    const w = WORDS[state.browse];
+    const box = E.boxOf(progress, w);
+    const due = E.dueOf(progress, w);
+    const days = due - E.today();
+    const when = box === 0 ? "ещё не изучалось" : days <= 0 ? "повторить сегодня" : `следующий повтор через ${days} ${plural(days, "день", "дня", "дней")}`;
+    return `<main>
+      <div class="exhead"><button class="iconbtn" data-act="close-card" aria-label="Назад к списку">${ICON_CLOSE}</button><span class="label">Уровень ${box} из 6 · ${when}</span></div>
+      <section class="sheet">
+        <div class="row"><span class="word">${esc(w.en)}</span>${sayBtn(w.en)}${sayBtn(w.en, "en", true)}</div>
+        <div class="ipa" style="font-size:18px">${esc(w.ipa || "")}</div>
+        <div class="row" style="flex-wrap:nowrap;align-items:flex-start"><div style="flex:1;font-size:18px">${esc(w.ru)}</div>${sayBtn(w.ru, "ru")}</div>
+      </section>
+      ${E.hasExamples(w) ? `<section class="sheet">
+        <div class="label">Примеры</div>
+        ${w.examples.map((e) => `<div class="example"><div><div>${esc(e.en)}</div><div class="sub">${esc(e.ru)}</div></div>${sayBtn(e.en)}</div>`).join("")}
+      </section>` : ""}
+      ${w.custom ? `<button class="btn ghost" data-act="delete-word" data-i="${state.browse}">Удалить это слово</button>` : ""}
+    </main>
+    <div class="bar-bottom"><button class="btn primary" data-act="practise" data-i="${state.browse}">Потренировать это слово</button></div>`;
+  }
+
+  function renderExercise() {
+    const s = state.session, ex = s.queue[s.pos], st = state.ex, w = ex.word;
+    const pct = Math.round((s.pos / s.queue.length) * 100);
+    let body = "";
+
+    if (ex.kind === "intro") {
+      body = `<section class="sheet">
+        <div class="row"><span class="word">${esc(w.en)}</span>${sayBtn(w.en)}${sayBtn(w.en, "en", true)}</div>
+        <div class="ipa" style="font-size:18px">${esc(w.ipa)}</div>
+        <div style="font-size:18px">${esc(w.ru)}</div>
+        ${(w.examples || []).slice(0, 2).map((e) => `<div class="example"><div><div>${esc(e.en)}</div><div class="sub">${esc(e.ru)}</div></div>${sayBtn(e.en)}</div>`).join("")}
+      </section>`;
+    } else if (["meaning", "listen", "toEnglish", "fillBlank"].includes(ex.kind)) {
+      let prompt = "";
+      if (ex.kind === "meaning") prompt = `<div class="row"><span class="word">${esc(w.en)}</span>${sayBtn(w.en)}</div><div class="ipa">${esc(w.ipa)}</div>`;
+      if (ex.kind === "listen") prompt = `<div class="row">${sayBtn(w.en, "en", false, "Ещё раз")}${sayBtn(w.en, "en", true)}<span class="sub">${st.done ? `<b style="color:var(--ink)">${esc(w.en)}</b> <span class="ipa">${esc(w.ipa)}</span>` : "Нажми, чтобы послушать ещё раз"}</span></div>`;
+      if (ex.kind === "toEnglish") prompt = `<div class="prompt">${esc(w.ru)}</div>`;
+      if (ex.kind === "fillBlank") {
+        const shown = st.done ? esc(ex.example.en) : esc(E.blank(ex.example.en, w.en)).replace("_____", '<span class="gap">&nbsp;</span>');
+        prompt = `<div class="prompt">${shown}</div><div class="sub">${esc(ex.example.ru)}</div>`;
+      }
+      const opts = ex.options.map((o) => {
+        let cls = "opt";
+        if (st.done) cls += o === ex.answer ? " good" : o === st.picked ? " bad" : " dim";
+        return `<button class="${cls}" data-act="pick" data-v="${esc(o)}" ${st.done ? "disabled" : ""}>${esc(o)}</button>`;
+      }).join("");
+      body = `<section class="sheet">${prompt}</section><div class="options">${opts}</div>`;
+    } else if (["letters", "buildSentence", "dictation"].includes(ex.kind)) {
+      let prompt = "";
+      if (ex.kind === "letters") prompt = `<div class="row" style="flex-wrap:nowrap;align-items:flex-start"><div class="prompt" style="flex:1">${esc(w.ru)}</div>${sayBtn(w.en, "en", false, "Подсказка: послушать")}</div>`;
+      if (ex.kind === "buildSentence") prompt = `<div class="prompt">${esc(ex.example.ru)}</div>`;
+      if (ex.kind === "dictation") prompt = `<div class="row">${sayBtn(ex.example.en, "en", false, "Ещё раз")}${sayBtn(ex.example.en, "en", true)}<span class="sub">${st.done ? esc(ex.example.ru) : "Послушай и собери, что услышал"}</span></div>`;
+      const placed = st.placed.map((i) => ex.pieces[i]);
+      let line = "";
+      if (ex.kind === "letters") {
+        let k = 0;
+        line = [...w.en].map((c) => {
+          if (c === " ") return `<span class="slot space"></span>`;
+          const v = placed[k++];
+          return v ? `<span class="slot ${st.revealed ? "revealed" : ""}">${esc(v)}</span>` : `<span class="slot empty">_</span>`;
+        }).join("");
+      } else {
+        line = `<span class="chipline ${st.revealed ? "revealed" : ""}">${esc(placed.join(" ")) || "&nbsp;"}</span>`;
+      }
+      const tiles = ex.pieces.map((p, i) => {
+        const used = st.placed.includes(i);
+        return `<button class="tile ${ex.kind === "letters" ? "letter" : ""} ${used ? "used" : ""} ${st.wrong === i ? "wrong" : ""}" data-act="tap" data-i="${i}" ${used || st.done ? "disabled" : ""}>${esc(p)}</button>`;
+      }).join("");
+      body = `<section class="sheet">${prompt}<div class="answerline" aria-live="polite">${line}</div></section><div class="tiles">${tiles}</div>`;
+    } else if (ex.kind === "typing") {
+      const hint = [...w.en].map((c, i) => (c === " " ? " " : i === 0 ? c : "_")).join("");
+      body = `<section class="sheet">
+        <div class="prompt">${esc(w.ru)}</div>
+        <div class="hint" aria-label="Первая буква и длина слова">${esc(hint)}</div>
+        <form data-form="typed"><input class="typed" id="typed" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" placeholder="Напиши по-английски" ${st.done ? "disabled" : ""} value="${esc(st.typed)}"></form>
+      </section>`;
+    }
+
+    let feedback = "";
+    if (st.done && ex.kind !== "intro") {
+      const good = !st.mistake;
+      const title = good ? (st.typedResult === "typo" ? "Почти! Одна опечатка" : "Верно!") : "Запомни";
+      const audio = ["fillBlank", "buildSentence", "dictation"].includes(ex.kind) ? ex.example.en : w.en;
+      feedback = `<div class="feedback ${good ? "good" : "bad"}" role="status"><div class="fb-body"><b>${title}</b>
+        <span>${esc(w.en)}</span> <span class="ipa">${esc(w.ipa)}</span> — ${esc(w.ru)}</div>${sayBtn(audio)}</div>`;
+    }
+
+    let actions = "";
+    if (ex.kind === "intro") actions = `<button class="btn primary" data-act="next">Понятно, к заданиям</button>`;
+    else if (st.done) actions = `<button class="btn primary" data-act="next">Дальше</button>`;
+    else if (ex.kind === "typing") actions = `<button class="btn ghost" data-act="reveal">Не знаю</button><button class="btn primary" data-act="check">Проверить</button>`;
+    else if (ex.target.length) actions = `<button class="btn ghost" data-act="undo" ${st.placed.length ? "" : "disabled"}>Назад</button><button class="btn ghost" data-act="reveal">Не знаю</button>`;
+    else actions = `<button class="btn ghost" data-act="reveal">Не знаю</button>`;
+
+    return `<main>
+      <div class="exhead"><button class="iconbtn" data-act="quit" aria-label="Закончить тренировку">${ICON_CLOSE}</button>
+        <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
+        <span class="status" style="font-variant-numeric:tabular-nums">${s.pos + 1}/${s.queue.length}</span></div>
+      <div class="label">${ex.retry ? "Ещё раз · " : ""}${TITLES[ex.kind]}</div>
+      ${body}${feedback}
+    </main><div class="bar-bottom">${actions}</div>`;
+  }
+
+  function renderAddForm() {
+    return `<main>
+      <div class="exhead"><button class="iconbtn" data-act="close-form" aria-label="Назад">${ICON_CLOSE}</button><span class="label">Своё слово</span></div>
+      <form class="sheet" data-form="add" style="gap:14px">
+        <label class="field"><span class="label">Слово по-английски</span><input id="f-en" class="typed" style="font-size:20px" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required></label>
+        <label class="field"><span class="label">Перевод</span><input id="f-ru" class="typed" style="font-size:20px" autocomplete="off" required></label>
+        <label class="field"><span class="label">Транскрипция (если знаешь)</span><input id="f-ipa" class="typed" style="font-size:20px" autocomplete="off" autocapitalize="off" placeholder="/ˈbækˌfɪl/"></label>
+        <label class="field"><span class="label">Пример по-английски (необязательно)</span><input id="f-ex" class="typed" style="font-size:18px" autocomplete="off" autocapitalize="sentences"></label>
+        <label class="field"><span class="label">Перевод примера</span><input id="f-exru" class="typed" style="font-size:18px" autocomplete="off"></label>
+        ${state.formError ? `<p class="status" style="color:var(--bad);margin:0">${esc(state.formError)}</p>` : ""}
+        <p class="note" style="margin:0">Пример нужен для заданий с предложениями. Без него слово всё равно будет в тренировке: выбор, на слух, сборка из букв и написание. Если хочешь перевод, транскрипцию и примеры автоматически — напиши Claude «добавь слова: …».</p>
+      </form>
+    </main>
+    <div class="bar-bottom"><button class="btn primary" data-act="add-save">Добавить слово</button></div>`;
+  }
+
+  function addWord() {
+    const v = (id) => (app.querySelector("#" + id).value || "").trim();
+    const en = v("f-en"), ru = v("f-ru"), ipa = v("f-ipa"), ex = v("f-ex"), exru = v("f-exru");
+    if (!en || !ru) { state.formError = "Нужны слово и перевод."; render(); return; }
+    if (WORDS.some((w) => w.en.toLowerCase() === en.toLowerCase())) { state.formError = "Такое слово уже есть в списке."; render(); return; }
+    const examples = ex && ex.toLowerCase().includes(en.toLowerCase()) ? [{ en: ex, ru: exru }] : [];
+    if (ex && !examples.length) { state.formError = "В примере должно встречаться само слово."; render(); return; }
+    custom.push({ en, ru, ipa: ipa && !ipa.startsWith("/") ? "/" + ipa + "/" : ipa, examples, custom: true });
+    rebuildWords();
+    save();
+    state.adding = false; state.formError = ""; state.tab = "all";
+    render();
+  }
+
+  function renderSummary() {
+    const s = state.session;
+    const more = E.newWords(WORDS, progress).length > 0;
+    return `<main>
+      <div><div class="label">Готово</div><h1>Тренировка закончена</h1></div>
+      <section class="sheet"><div class="titleblock">
+        <div><div class="big">${s.clean}</div><div class="sub">без ошибок</div></div>
+        <div><div class="big">${s.total - s.clean}</div><div class="sub">вернутся завтра</div></div>
+      </div></section>
+    </main>
+    <div class="bar-bottom">
+      ${more ? `<button class="btn ghost" data-act="start-new">Ещё 3 новых</button>` : ""}
+      <button class="btn primary" data-act="finish">Готово</button>
+    </div>`;
+  }
+
+  function plural(n, one, few, many) {
+    const m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+    return many;
+  }
+
+  // ---------- Session flow ----------
+  function startSession(opts) {
+    state.session = E.buildSession(WORDS, progress, opts);
+    state.ex = blankEx();
+    state.browse = null;
+    if (!state.session.queue.length) { state.session = null; render(); return; }
+    render();
+    autoSpeak();
+  }
+
+  function autoSpeak() {
+    const s = state.session;
+    if (!s || s.pos >= s.queue.length) return;
+    const ex = s.queue[s.pos];
+    if (ex.kind === "intro" || ex.kind === "listen") speak(ex.word.en);
+    if (ex.kind === "dictation") speak(ex.example.en);
+  }
+
+  function finishExercise(mistake) {
+    const st = state.ex, ex = state.session.queue[state.session.pos];
+    if (mistake) st.mistake = true;
+    st.done = true;
+    render();
+    speak(["fillBlank", "buildSentence", "dictation"].includes(ex.kind) ? ex.example.en : ex.word.en);
+  }
+
+  function advance() {
+    const s = state.session, ex = s.queue[s.pos], id = E.idOf(ex.word);
+    if (state.ex.mistake) s.failed.add(id);
+    if (!ex.retry && s.remaining[id] !== undefined) {
+      s.remaining[id] -= 1;
+      if (s.remaining[id] === 0) {
+        const failed = s.failed.has(id);
+        progress[id] = E.score(progress[id], failed);
+        if (failed) s.queue.push(E.make(Math.random() < 0.5 ? "letters" : "toEnglish", ex.word, WORDS, true));
+        else s.clean += 1;
+        save();
+      }
+    }
+    s.pos += 1;
+    state.ex = blankEx();
+    render();
+    autoSpeak();
+  }
+
+  function tap(i) {
+    const s = state.session, ex = s.queue[s.pos], st = state.ex;
+    if (st.done || st.placed.includes(i)) return;
+    if (ex.pieces[i] === ex.target[st.placed.length]) {
+      st.placed.push(i);
+      st.wrong = null;
+      if (st.placed.length === ex.target.length) { finishExercise(false); return; }
+    } else {
+      st.mistake = true;
+      st.wrong = i;
+      st.wrongTaps += 1;
+      if (st.wrongTaps >= 3) { reveal(); return; }
+      setTimeout(() => { if (state.ex === st && st.wrong === i) { st.wrong = null; render(); } }, 450);
+    }
+    render();
+  }
+
+  function reveal() {
+    const ex = state.session.queue[state.session.pos], st = state.ex;
+    st.revealed = true;
+    if (ex.target.length) {
+      const used = new Set();
+      st.placed = ex.target.map((t) => { const i = ex.pieces.findIndex((p, k) => !used.has(k) && p === t); used.add(i); return i; });
+    }
+    if (ex.kind === "typing") st.typed = ex.answer;
+    finishExercise(true);
+  }
+
+  function check() {
+    const ex = state.session.queue[state.session.pos], st = state.ex;
+    const input = app.querySelector("input.typed");
+    st.typed = input ? input.value : st.typed;
+    if (!st.typed.trim()) return;
+    const result = E.checkTyped(st.typed, ex.answer);
+    st.typedResult = result;
+    finishExercise(result === "wrong");
+  }
+
+  // ---------- Events ----------
+  app.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-act]");
+    if (!b || b.disabled) return;
+    const act = b.dataset.act;
+    if (act === "say") { speak(b.dataset.text, b.dataset.lang === "ru" ? "ru-RU" : "en-US", b.dataset.slow === "1"); return; }
+    if (act === "tab") { state.tab = b.dataset.tab; state.browse = null; render(); return; }
+    if (act === "start") return startSession({});
+    if (act === "start-new") return startSession({ extraNew: true });
+    if (act === "open") { state.browse = Number(b.dataset.i); render(); window.scrollTo(0, 0); return; }
+    if (act === "close-card") { state.browse = null; render(); return; }
+    if (act === "add-form") { state.adding = true; state.formError = ""; render(); window.scrollTo(0, 0); return; }
+    if (act === "close-form") { state.adding = false; render(); return; }
+    if (act === "add-save") return addWord();
+    if (act === "delete-word") {
+      const w = WORDS[Number(b.dataset.i)];
+      custom = custom.filter((c) => c.en.toLowerCase() !== w.en.toLowerCase());
+      delete progress[E.idOf(w)];
+      rebuildWords(); save(); state.browse = null; render(); return;
+    }
+    if (act === "practise") return startSession({ only: WORDS[Number(b.dataset.i)] });
+    if (act === "pick") {
+      const ex = state.session.queue[state.session.pos];
+      state.ex.picked = b.dataset.v;
+      return finishExercise(b.dataset.v !== ex.answer);
+    }
+    if (act === "tap") return tap(Number(b.dataset.i));
+    if (act === "undo") { state.ex.placed.pop(); render(); return; }
+    if (act === "reveal") return reveal();
+    if (act === "check") return check();
+    if (act === "next") return advance();
+    if (act === "quit" || act === "finish") { state.session = null; state.ex = null; render(); return; }
+  });
+  app.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    if (ev.target.dataset.form === "add") return addWord();
+    if (state.session && !state.ex.done) check();
+  });
+  app.addEventListener("input", (ev) => { if (ev.target.matches("input.typed") && state.ex) state.ex.typed = ev.target.value; });
+
+  render();
+})();
+</script>
+</body></html>
