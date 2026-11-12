@@ -105,6 +105,7 @@ h1 { font-family: var(--display); font-weight: 700; font-size: 34px; line-height
 .sheet.message .gap { border-bottom-color: var(--line); }
 .sheet.message .sheet.message .gap { border-bottom-color: var(--line); }
 .sheet.message .sheet.message .gap { border-bottom-color: var(--line); }
+.sheet.message .sheet.message .gap { border-bottom-color: var(--line); }
 .sheet.message .gap.next { border-bottom-color: var(--accent); }
 
 .answerline { min-height: 58px; border-bottom: 2px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; padding-bottom: 8px; }
@@ -209,10 +210,14 @@ const Engine = (() => {
     return [...near, ...rest].slice(0, 3);
   }
 
-  function make(kind, word, words, retry = false, group = null) {
+  function make(kind, word, words, retry = false, group = null, avoid = null) {
     if (!hasExamples(word) && NEEDS_EXAMPLE.includes(kind)) kind = "toEnglish";
-    const example = hasExamples(word)
-      ? word.examples[Math.floor(Math.random() * word.examples.length)]
+    // Sentence exercises reuse a sentence from the intro card when they can
+    // and never repeat one already practised, which leaves a sentence nobody
+    // has seen yet for the site message at the end.
+    const pool = pickPool(word, avoid, true);
+    const example = pool.length
+      ? pool[Math.floor(Math.random() * pool.length)]
       : { en: word.en, ru: word.ru };
     const others = distractors(word, words, group);
     const ex = { kind, word, example, options: [], answer: "", pieces: [], target: [], retry, group: null };
@@ -245,9 +250,25 @@ const Engine = (() => {
 
   // A short message from the site that needs all the words of the group —
   // one example sentence of each, with the word taken out.
-  function makeSituation(group) {
+  // `memo` = { shown, practised }: sentences a word showed on its intro card
+  // and sentences already used in an exercise of this group.
+  function pickPool(word, memo, preferShown) {
+    const all = word.examples || [];
+    if (!memo) return all;
+    const shown = memo.shown || new Set(), practised = memo.practised || new Set();
+    const notPractised = all.filter((e) => !practised.has(e.en));
+    const tiers = preferShown
+      ? [notPractised.filter((e) => shown.has(e.en)), notPractised, all]
+      : [notPractised.filter((e) => !shown.has(e.en)), notPractised, all];
+    return tiers.find((t) => t.length) || all;
+  }
+
+  // The message takes, for every word, a sentence not met yet in this group,
+  // so it has to be read rather than remembered from thirty seconds ago.
+  function makeSituation(group, seen = {}) {
     const picks = shuffle(group.filter(hasExamples)).map((w) => {
-      const ex = w.examples[Math.floor(Math.random() * w.examples.length)];
+      const pool = pickPool(w, seen[idOf(w)], false);
+      const ex = pool[Math.floor(Math.random() * pool.length)];
       const i = ex.en.toLowerCase().indexOf(w.en.toLowerCase());
       return { word: w, before: ex.en.slice(0, i), after: ex.en.slice(i + w.en.length), en: ex.en, ru: ex.ru };
     }).filter((p) => p.before.length + p.after.length > 0 && p.en.toLowerCase().includes(p.word.en.toLowerCase()));
@@ -287,6 +308,8 @@ const Engine = (() => {
   function buildGroup(group, words, progress) {
     const plans = group.map((w) => plan(boxOf(progress, w)));
     const counts = new Map(group.map((w) => [idOf(w), 0]));
+    const seen = {};
+    const memo = (w) => (seen[idOf(w)] = seen[idOf(w)] || { shown: new Set(), practised: new Set() });
     const queue = [];
     const rounds = Math.max(...plans.map((p) => p.length));
     let pairsPlaced = false;
@@ -295,14 +318,22 @@ const Engine = (() => {
       const last = queue[queue.length - 1];
       if (last && items.length > 1 && last.word === items[0].w) items.push(items.shift());
       const isIntroRound = items.every((x) => x.kind === "intro");
-      for (const x of items) { queue.push(make(x.kind, x.w, words, false, group)); counts.set(idOf(x.w), counts.get(idOf(x.w)) + 1); }
+      for (const x of items) {
+        // Sentences a word has already shown in this group are avoided by
+        // the next sentence exercise too, not only by the message.
+        const ex = make(x.kind, x.w, words, false, group, seen[idOf(x.w)]);
+        if (x.kind === "intro") (x.w.examples || []).slice(0, 2).forEach((e) => memo(x.w).shown.add(e.en));
+        if (["fillBlank", "buildSentence", "dictation"].includes(ex.kind)) memo(x.w).practised.add(ex.example.en);
+        queue.push(ex);
+        counts.set(idOf(x.w), counts.get(idOf(x.w)) + 1);
+      }
       if (!isIntroRound && !pairsPlaced && group.length >= 2) {
         queue.push(makePairs(group));
         for (const w of group) counts.set(idOf(w), counts.get(idOf(w)) + 1);
         pairsPlaced = true;
       }
     }
-    const situation = group.length >= 2 ? makeSituation(group) : null;
+    const situation = group.length >= 2 ? makeSituation(group, seen) : null;
     if (situation) {
       queue.push(situation);
       for (const w of situation.group) counts.set(idOf(w), counts.get(idOf(w)) + 1);
